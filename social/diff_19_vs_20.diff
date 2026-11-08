@@ -1,6 +1,6 @@
-diff -ru filtrado/19/__manifest__.py filtrado/20/__manifest__.py
---- filtrado/19/__manifest__.py	2026-11-08 11:36:19
-+++ filtrado/20/__manifest__.py	2026-11-08 11:36:19
+diff -ru 19/__manifest__.py 20/__manifest__.py
+--- 19/__manifest__.py	2026-11-08 11:36:19
++++ 20/__manifest__.py	2026-11-08 11:36:19
 @@ -1,4 +1,3 @@
 -# -*- coding: utf-8 -*-
  # Part of Odoo. See LICENSE file for full copyright and licensing details.
@@ -82,9 +82,9 @@ diff -ru filtrado/19/__manifest__.py filtrado/20/__manifest__.py
      },
      'author': 'Odoo S.A.',
      'license': 'OEEL-1',
-diff -ru filtrado/19/controllers/main.py filtrado/20/controllers/main.py
---- filtrado/19/controllers/main.py	2026-11-08 11:36:19
-+++ filtrado/20/controllers/main.py	2026-11-08 11:36:19
+diff -ru 19/controllers/main.py 20/controllers/main.py
+--- 19/controllers/main.py	2026-11-08 11:36:19
++++ 20/controllers/main.py	2026-11-08 11:36:19
 @@ -1,12 +1,21 @@
  # -*- coding: utf-8 -*-
  # Part of Odoo. See LICENSE file for full copyright and licensing details.
@@ -340,9 +340,9 @@ diff -ru filtrado/19/controllers/main.py filtrado/20/controllers/main.py
 +
 +        send_away_message = not operator_info['operator_partner'] and (livechat_channel.social_away_message or '').strip()
 +        return discuss_channel, send_away_message
-diff -ru filtrado/19/models/social_account.py filtrado/20/models/social_account.py
---- filtrado/19/models/social_account.py	2026-11-08 11:36:19
-+++ filtrado/20/models/social_account.py	2026-11-08 11:36:19
+diff -ru 19/models/social_account.py 20/models/social_account.py
+--- 19/models/social_account.py	2026-11-08 11:36:19
++++ 20/models/social_account.py	2026-11-08 11:36:19
 @@ -3,10 +3,14 @@
  
  from odoo import _, models, fields, api
@@ -576,9 +576,9 @@ diff -ru filtrado/19/models/social_account.py filtrado/20/models/social_account.
 +            "social-download-attachment",
 +            attachment.id,
 +        )
-diff -ru filtrado/19/models/social_media.py filtrado/20/models/social_media.py
---- filtrado/19/models/social_media.py	2026-11-08 11:36:19
-+++ filtrado/20/models/social_media.py	2026-11-08 11:36:19
+diff -ru 19/models/social_media.py 20/models/social_media.py
+--- 19/models/social_media.py	2026-11-08 11:36:19
++++ 20/models/social_media.py	2026-11-08 11:36:19
 @@ -1,7 +1,7 @@
  # -*- coding: utf-8 -*-
  # Part of Odoo. See LICENSE file for full copyright and licensing details.
@@ -658,3 +658,2600 @@ diff -ru filtrado/19/models/social_media.py filtrado/20/models/social_media.py
 +    def _get_webhook_shared_secret(self):
 +        """Shared secret between the database and IAP, derived from the database secret."""
 +        return hmac(self.env(su=True), 'social-webhook_shared_secret', None)
+diff -ru 19/social_facebook/__manifest__.py 20/social_facebook/__manifest__.py
+--- 19/social_facebook/__manifest__.py	2025-09-17 04:14:29
++++ 20/social_facebook/__manifest__.py	2026-10-27 00:03:10
+@@ -1,17 +1,16 @@
+-# -*- coding: utf-8 -*-
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
+ {
+     'name': 'Social Facebook',
+     'category': 'Marketing/Social Marketing',
+     'summary': 'Manage your Facebook pages and schedule posts',
+-    'version': '1.0',
+     'description': """Manage your Facebook pages and schedule posts""",
+     'depends': ['social'],
+     'data': [
+         'data/social_media_data.xml',
+         'views/social_facebook_templates.xml',
+         'views/social_post_template_views.xml',
++        'views/social_post_views.xml',
+         'views/social_stream_post_views.xml',
+         'views/res_config_settings_views.xml',
+     ],
+@@ -26,6 +25,7 @@
+             'social_facebook/static/src/js/stream_post_comments_reply.js',
+             'social_facebook/static/src/js/stream_post_kanban_dashboard.js',
+             'social_facebook/static/src/js/stream_post_kanban_record.js',
++            'social_facebook/static/src/js/social_post_message_facebook_field.js',
+             ('after', 'social/static/src/js/social_post_formatter_mixin.js', 'social_facebook/static/src/js/social_post_formatter_mixin.js'),
+             'social_facebook/static/src/scss/social_facebook.scss',
+             'social_facebook/static/src/xml/**/*',
+diff -ru 19/social_facebook/controllers/__init__.py 20/social_facebook/controllers/__init__.py
+--- 19/social_facebook/controllers/__init__.py	2025-09-17 04:14:29
++++ 20/social_facebook/controllers/__init__.py	2026-10-27 00:03:10
+@@ -1,4 +1,6 @@
+ # -*- coding: utf-8 -*-
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
++from . import meta
++
+ from . import main
+diff -ru 19/social_facebook/controllers/main.py 20/social_facebook/controllers/main.py
+--- 19/social_facebook/controllers/main.py	2025-09-17 04:14:29
++++ 20/social_facebook/controllers/main.py	2026-10-27 00:03:10
+@@ -1,7 +1,5 @@
+-# -*- coding: utf-8 -*-
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
+-import base64
+ import json
+ import logging
+ import requests
+@@ -11,25 +9,23 @@
+ 
+ from odoo import http, _
+ from odoo.http import request
+-from odoo.tools import consteq
++from odoo.tools import BinaryBytes, consteq
+ from odoo.tools.urls import urljoin as url_join
+-from odoo.addons.auth_oauth.controllers.main import fragment_to_query_string
+-from odoo.addons.social.controllers.main import SocialController
++
+ from odoo.addons.social.controllers.main import SocialValidationException
++from odoo.addons.social_facebook.controllers.meta import SocialMetaController
+ 
+ _logger = logging.getLogger(__name__)
+ 
+ 
+-class SocialFacebookController(SocialController):
++class SocialFacebookController(SocialMetaController):
+     # ========================================================
+     # ACCOUNTS MANAGEMENT
+     # ========================================================
+ 
+-    @http.route(['/social_facebook/callback'], type='http', auth='user')
+-    @fragment_to_query_string
++    @http.route('/social_facebook/callback', type='http', auth='user')
+     def social_facebook_account_callback(self, access_token=None, is_extended_token=False, **kw):
+-        """ Facebook returns to the callback URL with all its own arguments as hash parameters.
+-        We use this very handy 'fragment_to_query_string' decorator to convert them to server readable parameters. """
++        """Facebook returns to the callback URL with all its own arguments as hash parameters."""
+         if not request.env.user.has_group('social.group_social_manager'):
+             return request.render('social.social_http_error_view',
+                                   {'error_message': _('Unauthorized. Please contact your administrator. ')})
+@@ -48,7 +44,7 @@
+                 except SocialValidationException as e:
+                     return request.render('social.social_http_error_view', {'error_message': e.get_message(), 'documentation_data': e.get_documentation_data()})
+ 
+-        return request.redirect('/odoo/action-social.action_social_stream_post')
++        return request.render('social.social_http_authentication_done')
+ 
+     # ========================================================
+     # COMMENTS / LIKES
+@@ -64,6 +60,7 @@
+ 
+         if comment_id and is_edit:
+             result = stream_post._facebook_comment_post(
++                stream_post.stream_id.account_id,
+                 url_join(request.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, comment_id),
+                 message,
+                 existing_attachment_id=existing_attachment_id,
+@@ -71,6 +68,7 @@
+             )
+         elif comment_id:
+             result = stream_post._facebook_comment_post(
++                stream_post.stream_id.account_id,
+                 url_join(request.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "%s/comments" % (comment_id)),
+                 message,
+                 existing_attachment_id=existing_attachment_id,
+@@ -78,6 +76,7 @@
+             )
+         else:
+             result = stream_post._facebook_comment_post(
++                stream_post.stream_id.account_id,
+                 url_join(request.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "%s/comments" % (stream_post.facebook_post_id)),
+                 message,
+                 existing_attachment_id=existing_attachment_id,
+@@ -106,7 +105,21 @@
+     def social_facebook_like_post(self, stream_post_id, like):
+         stream_post = self._get_social_stream_post(stream_post_id, 'facebook')
+         stream_post._facebook_like(stream_post.facebook_post_id, like)
++        stream_post._facebook_update_likes(like)
+ 
++    @http.route('/social_facebook/webhook', type='http', auth='public', methods=['GET', 'POST'], csrf=False, readonly=False)
++    def social_facebook_webhook(self, **kwargs):
++        if request.httprequest.method == 'GET':
++            webhook_verify_token = self.env['ir.config_parameter'].sudo().get_str(
++                'social.facebook_webhook_verify_token')
++            return self._meta_verify_webhook(kwargs, webhook_verify_token)
++
++        webhook_client_secret = None
++        if self.env['ir.config_parameter'].sudo().get_bool('social.facebook_use_own_account'):
++            webhook_client_secret = self.env['ir.config_parameter'].sudo().get_str('social.facebook_client_secret')
++
++        return self._meta_process_webhook("facebook_account_id", "facebook_access_token", webhook_client_secret)
++
+     # ========================================================
+     # MISC / UTILITY
+     # ========================================================
+@@ -137,20 +150,25 @@
+         accounts.unlink()
+         return 'OK'
+ 
+-    @http.route(['/social_facebook/redirect_to_profile/<int:account_id>/<facebook_user_id>'], type='http', auth='user')
+-    def social_facebook_redirect_to_profile(self, account_id, facebook_user_id, name=''):
++    @http.route(['/social_facebook/redirect_to_profile/<facebook_user_id>'], type='http', auth='user')
++    def social_facebook_redirect_to_profile(self, facebook_user_id, account_ids='[]', name=''):
+         """
+         All profiles are not available through a direct link so we need to
+         - Try to get a direct link to their profile
+         - If we can't, we perform a search on Facebook with their name
+         """
++        account_ids = json.loads(account_ids)
++        if account_ids:
++            account_id = request.env['social.account'].search([("id", "in", account_ids), ("media_type", "=", "facebook")], limit=1).id
++        else:
++            return request.redirect(f'https://www.facebook.com/search/?q={urllib.parse.quote(name)}', local=False)
+         account = request.env['social.account'].browse(account_id)
+ 
+         json_response = requests.get(
+             url_join(request.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, facebook_user_id),
+             params={
+                 'fields': 'name,link',
+-                'access_token': account.facebook_access_token
++                'access_token': account._get_facebook_access_token()
+             },
+             timeout=5
+         ).json()
+@@ -187,7 +205,7 @@
+             message = _('You need to be the manager of a Facebook Page to post with Odoo Social.\n Please create one and make sure it is linked to your account.')
+             documentation_link = 'https://facebook.com/business/pages/manage'
+             documentation_link_label = _('Read More about Facebook Pages')
+-            documentation_link_icon_class = 'fa fa-facebook'
++            documentation_link_icon_class = 'oi_facebook'
+             raise SocialValidationException(message, documentation_link, documentation_link_label, documentation_link_icon_class)
+ 
+         accounts_to_create = []
+@@ -199,7 +217,7 @@
+             if existing_accounts.get(account_id):
+                 # update access token
+                 # TODO awa: maybe check for name/picture update?
+-                existing_accounts.get(account_id).write({
++                existing_accounts.get(account_id).sudo().write({
+                     'active': True,
+                     'facebook_access_token': access_token,
+                     'social_account_handle': social_account_handle,
+@@ -217,7 +235,7 @@
+                 })
+ 
+         if accounts_to_create:
+-            request.env['social.account'].create(accounts_to_create)
++            self.env['social.account'].sudo().create(accounts_to_create)
+ 
+     def _facebook_get_extended_access_token(self, access_token, media):
+         """ The way that it works is Facebook sends you a token that is valid for 2 hours
+@@ -230,8 +248,8 @@
+ 
+         More details on this mechanic: https://www.devils-heaven.com/facebook-access-tokens/ """
+ 
+-        facebook_app_id = request.env['ir.config_parameter'].sudo().get_param('social.facebook_app_id')
+-        facebook_client_secret = request.env['ir.config_parameter'].sudo().get_param('social.facebook_client_secret')
++        facebook_app_id = request.env['ir.config_parameter'].sudo().get_str('social.facebook_app_id')
++        facebook_client_secret = request.env['ir.config_parameter'].sudo().get_str('social.facebook_client_secret')
+         extended_token_url = url_join(request.env['social.media']._FACEBOOK_ENDPOINT, "/oauth/access_token")
+         extended_token_request = requests.post(extended_token_url,
+             params={
+@@ -246,7 +264,7 @@
+ 
+     def _facebook_get_profile_image(self, account_id):
+         profile_image_url = url_join(request.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, '%s/picture?height=300' % account_id)
+-        return base64.b64encode(requests.get(profile_image_url, timeout=10).content)
++        return BinaryBytes(requests.get(profile_image_url, timeout=10).content)  # FIXME check response status
+ 
+     def _facebook_get_existing_accounts(self, media_id, json_response):
+         """ Returns the social.accounts already created as:
+Only in 20/social_facebook/controllers: meta.py
+diff -ru 19/social_facebook/data/social_media_data.xml 20/social_facebook/data/social_media_data.xml
+--- 19/social_facebook/data/social_media_data.xml	2025-09-17 04:14:29
++++ 20/social_facebook/data/social_media_data.xml	2026-10-27 00:03:10
+@@ -5,7 +5,9 @@
+             <field name="name">Facebook</field>
+             <field name="media_type">facebook</field>
+             <field name="media_description">Manage your Facebook pages and schedule posts</field>
+-            <field name="image" type="base64" file="social_facebook/static/src/img/facebook.svg"/>
++            <field name="max_post_length">63206</field>
++            <field name="image" type="bytes" file="social_facebook/static/src/img/facebook.svg"/>
++            <field name="has_livechat" eval="True"/>
+         </record>
+ 
+         <record id="stream_type_page_posts" model="social.stream.type">
+diff -ru 19/social_facebook/models/__init__.py 20/social_facebook/models/__init__.py
+--- 19/social_facebook/models/__init__.py	2025-09-17 04:14:29
++++ 20/social_facebook/models/__init__.py	2026-10-27 00:03:10
+@@ -1,6 +1,8 @@
+ # -*- coding: utf-8 -*-
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
++from . import discuss_channel
++from . import mail_guest
+ from . import res_config_settings
+ from . import social_media
+ from . import social_account
+Only in 20/social_facebook/models: discuss_channel.py
+Only in 20/social_facebook/models: mail_guest.py
+diff -ru 19/social_facebook/models/res_config_settings.py 20/social_facebook/models/res_config_settings.py
+--- 19/social_facebook/models/res_config_settings.py	2025-09-17 04:14:29
++++ 20/social_facebook/models/res_config_settings.py	2026-10-27 00:03:10
+@@ -13,6 +13,8 @@
+         compute='_compute_facebook_app_id', inverse='_inverse_facebook_app_id')
+     facebook_client_secret = fields.Char("Facebook App Secret",
+         compute='_compute_facebook_client_secret', inverse='_inverse_facebook_client_secret')
++    facebook_webhook_verify_token = fields.Char("Facebook Webhook Verify Token",
++        compute='_compute_facebook_webhook_verify_token', inverse='_inverse_facebook_webhook_verify_token')
+ 
+     @api.onchange('facebook_use_own_account')
+     def _onchange_facebook_use_own_account(self):
+@@ -24,24 +26,40 @@
+     def _compute_facebook_app_id(self):
+         for record in self:
+             if self.env.user.has_group('social.group_social_manager'):
+-                record.facebook_app_id = self.env['ir.config_parameter'].sudo().get_param('social.facebook_app_id')
++                record.facebook_app_id = self.env['ir.config_parameter'].sudo().get_str('social.facebook_app_id') or False
+             else:
+-                record.facebook_app_id = None
++                record.facebook_app_id = False
+ 
+     def _inverse_facebook_app_id(self):
+         for record in self:
+             if self.env.user.has_group('social.group_social_manager'):
+-                self.env['ir.config_parameter'].sudo().set_param('social.facebook_app_id', record.facebook_app_id)
++                self.env['ir.config_parameter'].sudo().set_str('social.facebook_app_id', record.facebook_app_id)
+ 
+     @api.depends('facebook_use_own_account')
+     def _compute_facebook_client_secret(self):
+         for record in self:
+             if self.env.user.has_group('social.group_social_manager'):
+-                record.facebook_client_secret = self.env['ir.config_parameter'].sudo().get_param('social.facebook_client_secret')
++                record.facebook_client_secret = self.env['ir.config_parameter'].sudo().get_str('social.facebook_client_secret') or False
+             else:
+-                record.facebook_client_secret = None
++                record.facebook_client_secret = False
+ 
+     def _inverse_facebook_client_secret(self):
+         for record in self:
+             if self.env.user.has_group('social.group_social_manager'):
+-                self.env['ir.config_parameter'].sudo().set_param('social.facebook_client_secret', record.facebook_client_secret)
++                self.env['ir.config_parameter'].sudo().set_str('social.facebook_client_secret', record.facebook_client_secret)
++
++    @api.depends('facebook_use_own_account')
++    def _compute_facebook_webhook_verify_token(self):
++        for record in self:
++            if self.env.user.has_group('social.group_social_manager'):
++                record.facebook_webhook_verify_token = self.env['ir.config_parameter'].sudo().get_str(
++                    'social.facebook_webhook_verify_token') or False
++            else:
++                record.facebook_webhook_verify_token = False
++
++    def _inverse_facebook_webhook_verify_token(self):
++        for record in self:
++            if self.env.user.has_group('social.group_social_manager'):
++                self.env['ir.config_parameter'].sudo().set_str(
++                    'social.facebook_webhook_verify_token',
++                    record.facebook_webhook_verify_token)
+diff -ru 19/social_facebook/models/social_account.py 20/social_facebook/models/social_account.py
+--- 19/social_facebook/models/social_account.py	2026-01-12 04:31:11
++++ 20/social_facebook/models/social_account.py	2026-10-27 00:03:10
+@@ -1,13 +1,18 @@
+ # -*- coding: utf-8 -*-
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
++import json
+ import logging
+ import requests
++import urllib.parse
+ 
+ from datetime import datetime
+ from dateutil.relativedelta import relativedelta
++from markupsafe import Markup
+ 
+ from odoo import api, fields, models
++from odoo.addons.social_facebook.utils import meta_run_request_batch
++from odoo.exceptions import UserError
+ from odoo.tools.urls import urljoin as url_join
+ 
+ _logger = logging.getLogger(__name__)
+@@ -20,16 +25,21 @@
+         help="Facebook Page ID provided by the Facebook API, this should never be set manually.")
+     facebook_access_token = fields.Char('Facebook Access Token', readonly=True,
+         help="""Facebook Page Access Token provided by the Facebook API, this should never be set manually.
+-            It's used to authenticate requests when posting to or reading information from this account.""")
++            It's used to authenticate requests when posting to or reading information from this account.""",
++        groups=fields.NO_ACCESS)
+ 
+     def _compute_stats_link(self):
+         """ External link to this Facebook Page's 'insights' (fancy name for the page statistics). """
+-        facebook_accounts = self._filter_by_media_types(['facebook'])
++        facebook_accounts = self._filter_by_media_types(['facebook']).filtered('facebook_account_id')
+         super(SocialAccount, (self - facebook_accounts))._compute_stats_link()
+ 
+         for account in facebook_accounts:
+-            account.stats_link = "https://www.facebook.com/%s/insights" % account.facebook_account_id \
+-                if account.facebook_account_id else False
++            account.stats_link = f"https://www.facebook.com/{account.facebook_account_id}/insights"
++            account.user_link = '/social_facebook/redirect_to_profile/%s?name=%s&account_ids=[%s]' % (
++                account.facebook_account_id,
++                urllib.parse.quote(account.name),
++                account.id,
++            )
+ 
+     def _compute_statistics(self):
+         """ This method computes this Facebook Page's statistics and trends.
+@@ -45,45 +55,76 @@
+         facebook_accounts = self._filter_by_media_types(['facebook'])
+         super(SocialAccount, (self - facebook_accounts))._compute_statistics()
+ 
+-        for account in facebook_accounts.filtered('facebook_account_id'):
+-            insights_endpoint_url = url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "%s/insights" % account.facebook_account_id)
+-            statistics_30d = account._compute_statistics_facebook(insights_endpoint_url)
+-            statistics_360d = account._compute_statistics_facebook_360d(insights_endpoint_url)
++        accounts_to_compute = facebook_accounts.filtered('facebook_account_id')
+ 
+-            page_global_stats = requests.get(url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, account.facebook_account_id),
+-                params={
++        queries = []
++
++        for account in accounts_to_compute:
++            # Get `fan_count`
++            queries.append({
++                'url': account.facebook_account_id,
++                'params': {
++                    'access_token': account._get_facebook_access_token(),
+                     'fields': 'fan_count',
+-                    'access_token': account.facebook_access_token
+                 },
+-                timeout=5
+-            )
++            })
+ 
+-            account.write({
+-                'audience': page_global_stats.json().get('fan_count'),
+-                'audience_trend': self._compute_trend(account.audience, statistics_30d['page_fans']),
+-                'engagement': statistics_360d['page_post_engagements'],
+-                'engagement_trend': self._compute_trend(account.engagement, statistics_30d['page_post_engagements']),
++            # Get the stats of the last 30 days
++            queries.append({
++                'url': f"{account.facebook_account_id}/insights",
++                'params': {
++                    'access_token': account._get_facebook_access_token(),
++                    'metric': 'page_post_engagements,page_follows',
++                    'period': 'day',
++                    'date_preset': 'last_30d',
++                },
+             })
+ 
+-    def _compute_statistics_facebook_360d(self, insights_endpoint_url):
+-        """ Facebook only accepts requests for a range of maximum 90 days.
+-        We loop 4 times over 90 days to build the last 360 days of data (~ 1 year). """
++            # Facebook only accepts requests for a range of maximum 90 days.
++            # We loop 4 times over 90 days to build the last 360 days of data (~ 1 year).
++            for i in range(4):
++                until = datetime.now() - relativedelta(days=(i * 90))
++                since = until - relativedelta(days=90)
+ 
+-        total_statistics = dict(page_post_engagements=0, page_fans=0)
+-        for i in range(4):
+-            until = datetime.now() - relativedelta(days=(i * 90))
+-            since = until - relativedelta(days=90)
+-            statistics_90d = self._compute_statistics_facebook(
+-                insights_endpoint_url,
+-                since=int(since.timestamp()),
+-                until=int(until.timestamp())
+-            )
+-            total_statistics['page_post_engagements'] += statistics_90d['page_post_engagements']
+-            total_statistics['page_fans'] += statistics_90d['page_fans']
++                queries.append({
++                    'url': f"{account.facebook_account_id}/insights",
++                    'params': {
++                        'access_token': account._get_facebook_access_token(),
++                        'metric': 'page_post_engagements,page_follows',
++                        'period': 'day',
++                        'since': int(since.timestamp()),
++                        'until': int(until.timestamp()),
++                    },
++                })
+ 
+-        return total_statistics
++        responses = iter(meta_run_request_batch(self.env, queries))
+ 
+-    def _compute_statistics_facebook(self, endpoint_url, date_preset='last_30d', since=None, until=None):
++        for account in accounts_to_compute:
++            page_global_stats = next(responses)
++
++            statistics_30d = self._parse_statistics_facebook(next(responses))
++            statistics_360d = {'page_post_engagements': 0, 'page_fans': 0}
++
++            for __ in range(4):
++                result = self._parse_statistics_facebook(next(responses))
++                statistics_360d['page_post_engagements'] += result['page_post_engagements']
++                statistics_360d['page_fans'] += result['page_fans']
++
++            fan_count = page_global_stats and int(page_global_stats['fan_count']) or 0
++            account.write({
++                'audience': fan_count,
++                'audience_trend': self._compute_trend(fan_count, statistics_30d['page_fans']),
++                'engagement': statistics_360d['page_post_engagements'],
++                'engagement_trend': self._compute_trend(statistics_360d['page_post_engagements'], statistics_30d['page_post_engagements']),
++            })
++
++    def _get_facebook_access_token(self):
++        """Return the access token to use for API calls."""
++        self.ensure_one()
++        self.check_access("read")
++        return self.sudo().facebook_access_token
++
++    def _parse_statistics_facebook(self, response):
+         """ Check https://developers.facebook.com/docs/graph-api/reference/v17.0/insights for more information
+         about the endpoint used.
+         e.g of data structure returned by the endpoint:
+@@ -110,27 +151,11 @@
+         That method returns the delta of the statistics in the given
+         period of time (not the total value for the lifetime of the page).
+         """
+-
+-        params = {
+-            'metric': 'page_post_engagements,page_follows',
+-            'period': 'day',
+-            'access_token': self.facebook_access_token
+-        }
+-
+-        if since and until:
+-            params['since'] = since
+-            params['until'] = until
+-        else:
+-            params['date_preset'] = date_preset
+-
+-        response = requests.get(endpoint_url, params=params, timeout=5)
+-
+         statistics = {'page_fans': 0, 'page_post_engagements': 0}
+-        if not response.json().get('data'):
+-            _logger.warning("Social Facebook: Failed to retrieve page statistics: %s.", response.text)
++        if not response or not response.get('data'):
+             return statistics
+ 
+-        json_data = response.json().get('data')
++        json_data = response.get('data')
+         page_follows = {}
+         for metric in json_data:
+             metric_name = metric.get('name')
+@@ -173,3 +198,115 @@
+                 'account_id': account.id
+             })
+         self.env['social.stream'].create(streams_to_create)
++
++    @api.model
++    def search_mention_suggestions(self, search_term, media_type):
++        """Search a page based on its name (e.g: "LNA's test page").
++        We can only search for pages as Facebook doesn't allow us a user search.
++        We use the batched requests system to enable us to get all the pictures for each result of the search.
++        As /pages/search doesn't provide any image related field.
++
++        The batched requests is a system provided by the Facebook API to enable people to do multiple requests
++        in a singular one. https://developers.facebook.com/docs/graph-api/batch-requests/
++        The idea is to provide via a POST a list of requests that you want to do, each with its method and relative URL.
++        An example of batch requests: [
++            {"method":"POST", "relative_url":"PAGE-ID/feed", "body":"message=Test status update"}, <- Update the feed
++            {"method":"GET", "relative_url":"PAGE-ID/feed"} <- Get the latest value of the feed
++        ]
++        These requests are processed in the order of the array provided.
++        """
++        if media_type != 'facebook':
++            return super().search_mention_suggestions(search_term, media_type)
++
++        facebook_account = self.env['social.account'].search([("media_type", "=", media_type)], limit=1)
++
++        response = requests.get(
++            url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, '/pages/search'),
++            params={'q': search_term, 'fields': 'id,link,name', 'access_token': facebook_account._get_facebook_access_token()},
++            timeout=5)
++
++        pages_search_response_json = response.ok and response.json()
++        if not pages_search_response_json:
++            _logger.error("Failed to receive a JSON response when searching pages with %s, received instead: %s", search_term, response.text)
++            return []
++        # limit of 8 result in the search similar to mentions in the chatter.
++        facebook_page_ids = [facebook_page['id'] for facebook_page in pages_search_response_json.get('data', []) if facebook_page.get('id')][:8]
++
++        batched_requests = [{'method': 'GET', 'relative_url': f'{page_id}/picture?redirect=0&type=square'} for page_id in facebook_page_ids]
++        batch_response = requests.post(
++            self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED,
++            json={"batch": batched_requests},
++            params={'access_token': facebook_account._get_facebook_access_token(), 'include_headers': False},
++            timeout=5)
++        if not batch_response.ok and batch_response.json():
++            _logger.error("Failed to retrieve the profile pictures using the batched requests, received instead: %s", response.text)
++            return []
++        images_search_response_data = [json.loads(response.get('body', '{}')).get('data') for response in batch_response.json()]
++
++        results = [
++            {
++                "id": page_data["id"],
++                "link": page_data["link"],
++                "name": page_data["name"],
++                "profile_image_url": profile_image_data['url'],
++            } for page_data, profile_image_data in zip(pages_search_response_json.get('data'), images_search_response_data)
++        ]
++        return results
++
++    ###############
++    # Common Meta #
++    ###############
++
++    def _is_meta_account(self):
++        self.ensure_one()
++        return self.media_type == 'facebook'
++
++    def _meta_access_token(self):
++        if self.media_type == 'facebook':
++            return self._get_facebook_access_token()
++
++    def _meta_get_unsupported_file_link(self):
++        self.ensure_one()
++        if self.media_type == 'facebook':
++            return Markup('%(message)s <a href="https://www.facebook.com/messages" target="_blank">%(link)s</a>') % {
++                "message": self.env._("Oops, we couldn't show this file."),
++                "link": self.env._("See in Facebook"),
++            }
++        raise NotImplementedError()
++
++    def action_register_webhook(self):
++        """Register to the webhook events we need when creating the livechat channel."""
++        self.ensure_one()
++        # perform manager check before making API calls
++        super().action_register_webhook()
++
++        if self._is_meta_account():
++            response = requests.post(
++                url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "/me/subscribed_apps"),
++                params={"subscribed_fields": "messages,message_reactions,message_echoes", "access_token": self._meta_access_token()},
++                timeout=5,
++            )
++            if response.ok and response.json().get('success'):
++                _logger.info('Social: webhook registered for account #%s', self.id)
++                self.is_livechat_webhook_registered = True
++            else:
++                raise UserError(self.env._("Failed to register the webhook: %s", response.text))
++
++    def action_delete_webhook(self):
++        self.ensure_one()
++        # perform manager check before making API calls
++        ret = super().action_delete_webhook()
++
++        if self._is_meta_account():
++            response = requests.delete(
++                url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "/me/subscribed_apps"),
++                params={"access_token": self._meta_access_token()},
++                timeout=5,
++            )
++            if (response.ok and response.json().get('success')) or "App is not installed" in response.text:
++                _logger.info('Social: webhook deleted for account #%s', self.id)
++                self.is_livechat_webhook_registered = False
++            else:
++                raise UserError(self.env._("Failed to delete the webhook: %s", response.text))
++
++        return ret
+diff -ru 19/social_facebook/models/social_live_post.py 20/social_facebook/models/social_live_post.py
+--- 19/social_facebook/models/social_live_post.py	2025-11-24 04:30:41
++++ 20/social_facebook/models/social_live_post.py	2026-10-27 00:03:10
+@@ -1,43 +1,80 @@
+ # -*- coding: utf-8 -*-
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
++import contextlib
++import datetime
+ import json
++import re
+ import requests
+ 
+-from odoo import models, fields, _
++from odoo import api, models, fields, _
++from odoo.addons.social_facebook.utils import meta_run_request_batch
+ from odoo.exceptions import UserError
+-from odoo.tools.urls import urljoin as url_join
++from werkzeug.urls import url_join
+ 
+ 
+ class SocialLivePost(models.Model):
+     _inherit = 'social.live.post'
+ 
+     facebook_post_id = fields.Char('Actual Facebook ID of the post')
++    facebook_post_as_story = fields.Boolean('Facebook Post Story', related="post_id.facebook_post_as_story")
++    facebook_story_url = fields.Char('Facebook Story URL')
++    facebook_is_story_expired = fields.Boolean(
++        "Facebook Story Expired",
++        compute="_compute_facebook_is_story_expired")
+ 
++    @api.depends('state', 'media_type', 'post_id.facebook_post_as_story', 'post_id.published_date')
++    def _compute_facebook_is_story_expired(self):
++        for post in self:
++            post.facebook_is_story_expired = (
++                post.media_type == 'facebook'
++                and post.state == 'posted'
++                and post.post_id.facebook_post_as_story
++                and post.post_id.published_date
++                and post.post_id.published_date < fields.Datetime.now() - datetime.timedelta(hours=24)
++            )
++
++    @api.depends('state', 'facebook_story_url', 'post_id.facebook_post_as_story',
++        'facebook_is_story_expired', 'facebook_post_id')
+     def _compute_live_post_link(self):
+         facebook_live_posts = self._filter_by_media_types(["facebook"]).filtered(lambda post: post.state == 'posted')
+         super(SocialLivePost, self - facebook_live_posts)._compute_live_post_link()
+ 
+         for post in facebook_live_posts:
+-            post.live_post_link = "http://facebook.com/%s" % post.facebook_post_id
++            if not post.post_id.facebook_post_as_story:
++                post.live_post_link = f"http://facebook.com/{post.facebook_post_id}"
++            elif not post.facebook_is_story_expired:
++                post.live_post_link = post.facebook_story_url
++            else:
++                post.live_post_link = False
+ 
++    @api.depends('post_id.facebook_post_as_story')
++    def _compute_has_metrics(self):
++        super()._compute_has_metrics()
++        facebook_live_posts = self._filter_by_media_types(['facebook']).filtered(
++            lambda post: not post.post_id.facebook_post_as_story)
++        facebook_live_posts.has_likes = True
++        facebook_live_posts.has_comments = True
++        facebook_live_posts.has_shares = True
++
+     def _refresh_statistics(self):
+         super()._refresh_statistics()
+         accounts = self.env['social.account'].search([('media_type', '=', 'facebook')])
+ 
+-        for account in accounts:
+-            posts_endpoint_url = url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "%s/%s" % (account.facebook_account_id, 'published_posts'))
+-            result = requests.get(posts_endpoint_url,
+-                params={
+-                    'access_token': account.facebook_access_token,
+-                    'fields': 'id,shares,likes.limit(1).summary(true),comments.summary(true)'
+-                },
+-                timeout=5
+-            )
++        queries = [{
++            'url': f"/{account.facebook_account_id}/published_posts",
++            'params': {
++                'access_token': account._get_facebook_access_token(),
++                'fields': 'id,shares,likes.limit(1).summary(true),comments.summary(true)'
++            },
++        } for account in accounts]
+ 
+-            result_posts = result.json().get('data')
++        responses = iter(meta_run_request_batch(self.env, queries))
++
++        for account, response in zip(accounts, responses):
++            result_posts = response and response.get('data')
+             if not result_posts:
+-                account._action_disconnect_accounts(result.json())
++                account._action_disconnect_accounts()
+                 return
+ 
+             facebook_post_ids = [post.get('id') for post in result_posts]
+@@ -56,7 +93,9 @@
+                     shares_count = post.get('shares', {}).get('count', 0)
+                     comments_count = post.get('comments', {}).get('summary', {}).get('total_count', 0)
+                     existing_live_post.write({
+-                        'engagement': likes_count + shares_count + comments_count,
++                        'likes_count': likes_count,
++                        'comments_count': comments_count,
++                        'shares_count': shares_count,
+                     })
+ 
+     def _post(self):
+@@ -74,11 +113,23 @@
+         post = self.post_id
+ 
+         params = {
+-            'message': self.message,
+-            'access_token': account.facebook_access_token
++            'message': self._format_facebook_mentions(self.message),
++            'access_token': account._get_facebook_access_token()
+         }
+ 
+-        if self.image_ids and len(self.image_ids) == 1:
++        if post.facebook_post_as_story:
++            # Post as story
++            photo_id = post._format_images_facebook(account.facebook_account_id, account._get_facebook_access_token())[0]['media_fbid']
++            result = requests.post(
++                url_join(
++                    self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED,
++                    f'{account.facebook_account_id}/photo_stories',
++                ),
++                data={"photo_id": photo_id, 'access_token': account._get_facebook_access_token()},
++                timeout=15,
++            )
++
++        elif self.image_ids and len(self.image_ids) == 1:
+             # if you have only 1 image, you have to use another endpoint with different parameters...
+             image = self.image_ids[0]
+             if image.mimetype == 'image/gif':
+@@ -97,7 +148,7 @@
+                 params['caption'] = params['message']
+ 
+             result = requests.request('POST', endpoint_url, params=params, timeout=15,
+-                files={'source': (image.name, image.with_context(bin_size=False).raw, image.mimetype)})
++                files={'source': (image.name, image.raw, image.mimetype)})
+             if not result.ok:
+                 generic_api_error = json.loads(result.text or '{}').get('error', {}).get('message', '')
+                 self.write({
+@@ -108,14 +159,14 @@
+         else:
+             if self.image_ids:
+                 try:
+-                    images_attachments = post._format_images_facebook(account.facebook_account_id, account.facebook_access_token)
++                    images_attachments = post._format_images_facebook(account.facebook_account_id, account._get_facebook_access_token())
+                 except UserError as e:
+                     self.write({
+                         'state': 'failed',
+                         'failure_reason': str(e)
+                     })
+                     return
+-                images_attachments = post._format_images_facebook(facebook_target_id, account.facebook_access_token)
++                images_attachments = post._format_images_facebook(facebook_target_id, account._get_facebook_access_token())
+                 if images_attachments:
+                     params.update({
+                         f'attached_media[{index}]': json.dumps(attachment)
+@@ -129,8 +180,9 @@
+ 
+             result = requests.post(post_endpoint_url, data=params, timeout=15)
+ 
+-        if (result.status_code == 200):
++        if result.ok:
+             result_json = result.json()
++
+             # when posting an image, the id of the related post is in 'post_id'
+             # otherwise, we use the 'id' key that matches the post id we retrieve in stream.posts
+             self.facebook_post_id = result_json.get('post_id', result_json.get('id', False))
+@@ -138,10 +190,56 @@
+                 'state': 'posted',
+                 'failure_reason': False
+             }
++
++            if self.post_id.facebook_first_comment and not self.post_id.facebook_post_as_story:
++                comment = self.env['mail.render.mixin'].sudo()._shorten_links_text(
++                    self.post_id.facebook_first_comment,
++                    self._get_utm_values()
++                )
++                endpoint = url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, f"{self.facebook_post_id}/comments")
++                with contextlib.suppress(Exception):
++                    self.env['social.stream.post']._facebook_comment_post(
++                        self.account_id,
++                        endpoint,
++                        comment,
++                    )
++
++            if post.facebook_post_as_story:
++                # Get the URL of the story
++                endpoint_url = url_join(
++                    self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED,
++                    f'{self.account_id.facebook_account_id}/stories'
++                )
++                result = requests.get(
++                    endpoint_url,
++                    params={'access_token': account._get_facebook_access_token()},
++                    timeout=15,
++                )
++                if result.ok:
++                    self.facebook_story_url = next((
++                        p['url'] for p in result.json().get('data', ())
++                        if p['post_id'] == self.facebook_post_id
++                    ), False)
++
+         else:
+             values = {
+                 'state': 'failed',
+-                'failure_reason': json.loads(result.text or '{}').get('error', {}).get('message', '')
++                'failure_reason': json.loads(result.text or '{}').get('error', {}).get('message', '') or result.text
+             }
+-
+         self.write(values)
++
++    def _format_facebook_mentions(self, input_string, add_name=False):
++        """
++        Formats an input string to replace mentions to correct Facebook Mentions.
++        See: https://developers.facebook.com/docs/pages-api/comments-mentions#-mention-or-tag
++        """
++        mention_items = json.loads(self.post_id.social_post_mentions or '{}').get('facebook', {}).items()
++        tags = []
++        for mention, values in mention_items:
++            match = re.search(f'@{re.escape(mention)}', input_string)
++            tags.append({
++                'id': values['id'], 'name': values['name'] if add_name else '',
++                'offset': match.start(), 'length': match.end() - match.start()
++            })
++
++        return self.env['social.stream']._format_facebook_message(input_string, tags)
+diff -ru 19/social_facebook/models/social_media.py 20/social_facebook/models/social_media.py
+--- 19/social_facebook/models/social_media.py	2025-09-17 04:14:29
++++ 20/social_facebook/models/social_media.py	2026-10-27 00:03:10
+@@ -14,7 +14,7 @@
+     _inherit = 'social.media'
+ 
+     _FACEBOOK_ENDPOINT = 'https://graph.facebook.com'
+-    _FACEBOOK_ENDPOINT_VERSIONED = '%s/v17.0/' % _FACEBOOK_ENDPOINT
++    _FACEBOOK_ENDPOINT_VERSIONED = f'{_FACEBOOK_ENDPOINT}/v17.0'
+ 
+     media_type = fields.Selection(selection_add=[('facebook', 'Facebook')])
+ 
+@@ -31,8 +31,8 @@
+         if self.media_type != 'facebook':
+             return super()._action_add_account()
+ 
+-        facebook_app_id = self.env['ir.config_parameter'].sudo().get_param('social.facebook_app_id')
+-        facebook_client_secret = self.env['ir.config_parameter'].sudo().get_param('social.facebook_client_secret')
++        facebook_app_id = self.env['ir.config_parameter'].sudo().get_str('social.facebook_app_id')
++        facebook_client_secret = self.env['ir.config_parameter'].sudo().get_str('social.facebook_client_secret')
+         if facebook_app_id and facebook_client_secret:
+             return self._add_facebook_accounts_from_configuration(facebook_app_id)
+         else:
+@@ -42,39 +42,35 @@
+         base_facebook_url = 'https://www.facebook.com/v17.0/dialog/oauth?%s'
+         scopes = [
+                 'pages_manage_ads',
++                'pages_manage_engagement',
+                 'pages_manage_metadata',
++                'pages_manage_posts',
++                'pages_messaging',
+                 'pages_read_engagement',
+                 'pages_read_user_content',
+-                'pages_manage_engagement',
+-                'pages_manage_posts',
+-                'read_insights'
++                'public_profile',
++                'read_insights',
+         ]
+-        if not self.env['ir.config_parameter'].sudo().get_param('social.facebook_no_business_management'):
++        if not self.env['ir.config_parameter'].sudo().get_bool('social.facebook_no_business_management'):
+             scopes.append("business_management")
+         params = {
+             'client_id': facebook_app_id,
+-            'redirect_uri': url_join(self.get_base_url(), "social_facebook/callback"),
++            'redirect_uri': url_join(self.get_base_url(), '/social/facebook/start_auth_process'),
+             'response_type': 'token',
+             'scope': ','.join(scopes),
+         }
++        return base_facebook_url % url_encode(params)
+ 
+-        return {
+-            'type': 'ir.actions.act_url',
+-            'url': base_facebook_url % url_encode(params),
+-            'target': 'self'
+-        }
+-
+     def _add_facebook_accounts_from_iap(self):
+-        social_iap_endpoint = self.env['ir.config_parameter'].sudo().get_param(
+-            'social.social_iap_endpoint',
+-            self.env['social.media']._DEFAULT_SOCIAL_IAP_ENDPOINT
+-        )
++        social_iap_endpoint = self.env['ir.config_parameter'].sudo().get_str(
++            'social.social_iap_endpoint') or self.env['social.media']._DEFAULT_SOCIAL_IAP_ENDPOINT
+ 
+         iap_add_accounts_url = requests.get(url_join(social_iap_endpoint, 'api/social/facebook/1/add_accounts'),
+             params={
+-                'db_uuid': self.env['ir.config_parameter'].sudo().get_param('database.uuid'),
+-                'returning_url': url_join(self.get_base_url(), 'social_facebook/callback'),
++                'db_uuid': self.env['ir.config_parameter'].sudo().get_str('database.uuid'),
++                'returning_url': url_join(self.get_base_url(), '/social/facebook/start_auth_process'),
+                 'client_host_url': self.get_base_url(),
++                'webhook_shared_secret': self._get_webhook_shared_secret(),
+                 'deletion_shared_secret': self._get_social_facebook_deletion_shared_secret(),
+             },
+             timeout=5
+@@ -86,11 +82,7 @@
+                 "You can easily get one here: %s.\n"
+                 "Grab a subscription and unlock a world of amazing features!", 'https://www.odoo.com/buy'))
+ 
+-        return {
+-            'type': 'ir.actions.act_url',
+-            'url': iap_add_accounts_url,
+-            'target': 'self'
+-        }
++        return iap_add_accounts_url
+ 
+     def _get_social_facebook_deletion_shared_secret(self):
+         """Shared secret between the database and IAP, derived from the database secret."""
+diff -ru 19/social_facebook/models/social_post.py 20/social_facebook/models/social_post.py
+--- 19/social_facebook/models/social_post.py	2025-09-17 04:14:29
++++ 20/social_facebook/models/social_post.py	2026-10-27 00:03:10
+@@ -1,51 +1,52 @@
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
+-import json
+-import requests
+-
+ from odoo import _, api, fields, models
++from odoo.addons.social_facebook.utils import meta_run_request_batch
+ from odoo.exceptions import UserError
+ from odoo.fields import Domain
+-from odoo.tools.urls import urljoin as url_join
+ 
+ 
+ class SocialPost(models.Model):
+     _inherit = 'social.post'
+ 
+     facebook_image_ids = fields.Many2many(relation='facebook_image_ids_rel')
++    facebook_scheduled_date = fields.Datetime(
++        string='Facebook Scheduled for',
++        compute='_compute_scheduled_date_by_media',
++        store=True, readonly=False, copy=False)
+ 
+     @api.depends('live_post_ids.facebook_post_id')
+     def _compute_stream_posts_count(self):
+         super()._compute_stream_posts_count()
+ 
++    @api.model
++    def _scheduled_date_fields(self):
++        return {**super()._scheduled_date_fields(), 'facebook': 'facebook_scheduled_date'}
++
+     def _get_stream_post_domain(self):
+         domain = super()._get_stream_post_domain()
+         facebook_post_ids = [facebook_post_id for facebook_post_id in self.live_post_ids.mapped('facebook_post_id') if facebook_post_id]
+         if facebook_post_ids:
+             return Domain.OR([domain, [('facebook_post_id', 'in', facebook_post_ids)]])
+-        else:
+-            return domain
++        return domain
+ 
+     def _format_images_facebook(self, facebook_account_id, facebook_access_token):
+         self.ensure_one()
+ 
+-        formatted_images = []
+-        for image in self.facebook_image_ids:
+-            facebook_photo_endpoint_url = url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, '%s/photos' % facebook_account_id)
++        responses = meta_run_request_batch(self.env, [{
++            'url': f"{facebook_account_id}/photos",
++            'method': "POST",
++            'params': {
++                'published': 'false',
++                'access_token': facebook_access_token,
++            },
++            'files': {'source': ('source', image.raw, image.mimetype)},
++        } for image in self.facebook_image_ids])
+ 
+-            post_result = requests.request('POST', facebook_photo_endpoint_url,
+-                params={
+-                    'published': 'false',
+-                    'access_token': facebook_access_token
+-                },
+-                files={'source': ('source', image.with_context(bin_size=False).raw, image.mimetype)},
+-                timeout=15
+-            )
+-
+-            if post_result.ok:
+-                formatted_images.append({'media_fbid': post_result.json().get('id')})
++        formatted_images = []
++        for post_result in responses:
++            if post_result:
++                formatted_images.append({'media_fbid': post_result.get('id')})
+             else:
+-                generic_api_error = json.loads(post_result.text or '{}').get('error', {}).get('message', '')
+-                raise UserError(_("We could not upload your image, try reducing its size and posting it again (error: %s).", generic_api_error))
+-
++                raise UserError(_("We could not upload your image, try reducing its size and posting it again."))
+         return formatted_images
+diff -ru 19/social_facebook/models/social_post_template.py 20/social_facebook/models/social_post_template.py
+--- 19/social_facebook/models/social_post_template.py	2025-10-27 04:30:38
++++ 20/social_facebook/models/social_post_template.py	2026-10-27 00:03:10
+@@ -14,9 +14,13 @@
+         'Facebook Message', compute='_compute_message_by_media',
+         store=True, readonly=False)
+     facebook_image_ids = fields.Many2many(
+-        'ir.attachment', 'template_facebook_image_ids_rel', string='Facebook Images',
++        'social.post.image', 'template_facebook_image_ids_rel', string='Facebook Images',
+         help='Will attach images to your posts.', compute='_compute_images_by_media',
+         store=True, readonly=False, bypass_search_access=True)
++    facebook_first_comment = fields.Text(
++        'Facebook First Comment', compute='_compute_first_comment_by_media',
++        store=True, readonly=False)
++    facebook_post_as_story = fields.Boolean("Facebook Post Story")
+ 
+     facebook_preview = fields.Html('Facebook Preview', compute='_compute_facebook_preview')
+     has_facebook_account = fields.Boolean('Has Facebook Account', compute='_compute_has_facebook_account')
+@@ -30,6 +34,12 @@
+                 and not post.facebook_image_ids):
+                 raise UserError(_("Please specify either a Facebook Message or upload some Facebook Images."))
+ 
++    @api.constrains('facebook_post_as_story', 'facebook_image_ids')
++    def _check_facebook_post_as_story(self):
++        for post in self:
++            if post.facebook_post_as_story and len(post.facebook_image_ids) != 1:
++                raise UserError(_("Oops! Facebook stories can only contain a single picture."))
++
+     @api.depends('account_ids.media_id.media_type')
+     def _compute_has_facebook_account(self):
+         for post in self:
+@@ -40,7 +50,7 @@
+         for post in self:
+             post.display_facebook_preview = (post.facebook_message or post.facebook_image_ids) and post.has_facebook_account
+ 
+-    @api.depends(lambda self: ['facebook_message', 'facebook_image_ids', 'display_facebook_preview'] + self._get_post_message_modifying_fields())
++    @api.depends(lambda self: ['facebook_message', 'facebook_image_ids', 'display_facebook_preview', 'facebook_first_comment', 'social_post_mentions', 'facebook_post_as_story'] + self._get_post_message_modifying_fields())
+     def _compute_facebook_preview(self):
+         for post in self:
+             if not post.display_facebook_preview:
+@@ -51,8 +61,8 @@
+             link_preview = {}
+             if post.facebook_image_ids:
+                 image_urls = [
+-                    f'/web/image/{image._origin.id or image.id}'
+-                    for image in post.facebook_image_ids.sorted(lambda image: image._origin.id or image.id, reverse=True)
++                    f'/web/image/social.post.image/{image._origin.id or image.id}/raw'
++                    for image in post.facebook_image_ids.sorted(lambda image: (image.sequence, image._origin.id or image.id))
+                 ]
+             elif url := self.env["social.post"]._extract_url_from_message(post.facebook_message):
+                 preview = self.env["mail.link.preview"].sudo()._search_or_create_from_url(url)
+@@ -71,6 +81,8 @@
+                     post.facebook_message,
+                     'facebook',
+                     **{field: post[field] for field in post._get_post_message_modifying_fields()}),
++                'facebook_first_comment': post.facebook_first_comment,
++                'facebook_post_as_story': post.facebook_post_as_story,
+                 'image_urls': image_urls,
+                 'link_preview': link_preview,
+             })
+@@ -84,3 +96,16 @@
+     def _images_fields(self):
+         """Return the images field per media."""
+         return {**super()._images_fields(), 'facebook': 'facebook_image_ids'}
++
++    @api.model
++    def _first_comment_fields(self):
++        """Return the "first comment" field per media."""
++        return {**super()._first_comment_fields(), 'facebook': 'facebook_first_comment'}
++
++    def _prepare_social_post_values(self):
++        """Return the values to generate a social post from the social post template."""
++        self.ensure_one()
++        return {
++            **super()._prepare_social_post_values(),
++            'facebook_post_as_story': self.facebook_post_as_story,
++        }
+diff -ru 19/social_facebook/models/social_stream.py 20/social_facebook/models/social_stream.py
+--- 19/social_facebook/models/social_stream.py	2025-11-24 04:30:41
++++ 20/social_facebook/models/social_stream.py	2026-10-27 00:03:10
+@@ -60,10 +60,10 @@
+         result = requests.get(
+             posts_endpoint_url,
+             params={
+-                'access_token': self.account_id.facebook_access_token,
++                'access_token': self.account_id._get_facebook_access_token(),
+                 'fields': ','.join(facebook_fields)
+             },
+-            timeout=5
++            timeout=10
+         )
+ 
+         result_posts = result.json().get('data')
+@@ -107,8 +107,8 @@
+             attachments = self._extract_facebook_attachments(post)
+             existing_post = existing_posts_by_facebook_post_id.get(post.get('id'))
+             if existing_post:
+-                if attachments.get('stream_post_image_ids'):
+-                    values['stream_post_image_ids'] = [(5, 0, 0)] + attachments['stream_post_image_ids']
++                if attachments.get('stream_post_attachment_ids'):
++                    values['stream_post_attachment_ids'] = [(5, 0, 0)] + attachments['stream_post_attachment_ids']
+                 existing_post.sudo().write(values)
+             else:
+                 if attachments or values['message']:
+@@ -136,25 +136,42 @@
+                         'link_image_url': attachment.get('media').get('image').get('src')
+                     })
+             elif attachment.get('type') == 'album':
+-                images = []
+-                images_urls = []
+-                for sub_image in attachment.get('subattachments', {}).get('data', []):
+-                    image_url = sub_image.get('media').get('image').get('src')
+-                    images.append({
+-                        'image_url': image_url
+-                    })
+-                    images_urls.append(image_url)
++                content_vals = []
++                for sub_attachment in attachment.get('subattachments', {}).get('data', []):
++                    attachment_media = sub_attachment.get('media', {})
++                    if sub_attachment.get('type') == 'photo':
++                        if image := attachment_media.get('image', {}).get('src'):
++                            content_vals.append({
++                                'content_url': self._enforce_url_scheme(image),
++                                'attachment_content_type': 'image',
++                            })
++                    elif sub_attachment.get('type') == 'video':
++                        if video := attachment_media.get('source'):
++                            content_vals.append({
++                                'content_url': self._enforce_url_scheme(video),
++                                'thumbnail_url': self._enforce_url_scheme(attachment_media.get('image', {}).get('src', False)),
++                                'attachment_content_type': 'video',
++                            })
+ 
+-                if images:
++                if content_vals:
+                     result.update({
+-                        'stream_post_image_ids': [(0, 0, attachment) for attachment in images],
++                        'stream_post_attachment_ids': [(0, 0, attachment) for attachment in content_vals],
+                     })
+-            elif attachment.get('type') in ['photo', 'animated_image_video']:
+-                # TODO improvement later: handle videos in Feed view to correctly display FB GIFs?
+-                image_src = attachment.get('media', {}).get('image', {}).get('src')
+-                if image_src:
+-                    result.update({'stream_post_image_ids': [(0, 0, {'image_url': image_src})]})
++            elif attachment.get('type') == 'photo':
++                if image_src := attachment.get('media', {}).get('image', {}).get('src'):
++                    result.update({'stream_post_attachment_ids': [(0, 0, {
++                        'content_url': self._enforce_url_scheme(image_src),
++                        'attachment_content_type': 'image',
++                    })]})
+ 
++            elif attachment.get('type') in ['animated_image_video', 'video_inline']:
++                media = attachment.get('media', {})
++                if video_src := media.get('source'):
++                    result.update({'stream_post_attachment_ids': [(0, 0, {
++                        'content_url': self._enforce_url_scheme(video_src),
++                        'attachment_content_type': 'video',
++                        'thumbnail_url': self._enforce_url_scheme(media.get('image', {}).get('src', False)),
++                    })]})
+             elif attachment.get('type') == 'event':
+                 # events creation post are handle like link and image in the frontend
+                 result.update({
+@@ -163,9 +180,11 @@
+                     'link_url': attachment.get('target', {}).get('url', ''),
+                 })
+ 
+-                image_src = attachment.get('media', {}).get('image', {}).get('src')
+-                if image_src:
+-                    result.update({'stream_post_image_ids': [(0, 0, {'image_url': image_src})]})
++                if image_src := attachment.get('media', {}).get('image', {}).get('src'):
++                    result.update({'stream_post_attachment_ids': [(0, 0, {
++                        'content_url': self._enforce_url_scheme(image_src),
++                        'attachment_content_type': 'image',
++                    })]})
+ 
+         return result
+ 
+diff -ru 19/social_facebook/models/social_stream_post.py 20/social_facebook/models/social_stream_post.py
+--- 19/social_facebook/models/social_stream_post.py	2025-09-17 04:14:29
++++ 20/social_facebook/models/social_stream_post.py	2026-10-27 00:03:10
+@@ -2,6 +2,7 @@
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
+ import dateutil.parser
++import json
+ import logging
+ import requests
+ import urllib.parse
+@@ -59,7 +60,7 @@
+ 
+     def _facebook_comment_delete(self, comment_id):
+         requests.delete(url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, comment_id),
+-            data={'access_token': self.stream_id.account_id.facebook_access_token},
++            data={'access_token': self.stream_id.account_id._get_facebook_access_token()},
+             timeout=5
+         )
+ 
+@@ -71,7 +72,7 @@
+         comments_endpoint_url = url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "%s/comments" % self.facebook_post_id)
+         params = {
+             'fields': self.FACEBOOK_COMMENT_FIELDS,
+-            'access_token': self.stream_id.account_id.facebook_access_token,
++            'access_token': self.stream_id.account_id._get_facebook_access_token(),
+             'summary': 1,
+             'limit': count,
+             'order': 'reverse_chronological'
+@@ -111,10 +112,11 @@
+             'nextRecordsToken': result_json.get('paging').get('cursors').get('after') if result_json.get('paging') else None
+         }
+ 
+-    def _facebook_comment_post(self, endpoint_url, message, existing_attachment_id=None, attachment=None):
++    @api.model
++    def _facebook_comment_post(self, account_id, endpoint_url, message, existing_attachment_id=None, attachment=None):
+         params = {
+             'message': message,
+-            'access_token': self.stream_id.account_id.facebook_access_token,
++            'access_token': account_id._get_facebook_access_token(),
+             # The response received from the post request to post the comment
+             # does not return all the fields mentioned here.
+             'fields': self.FACEBOOK_COMMENT_FIELDS
+@@ -144,13 +146,29 @@
+         return result
+ 
+     def _facebook_like(self, object_id, like):
+-        params = {'access_token': self.stream_id.account_id.facebook_access_token}
++        params = {'access_token': self.stream_id.account_id._get_facebook_access_token()}
+         comments_like_endpoint_url = url_join(self.env['social.media']._FACEBOOK_ENDPOINT_VERSIONED, "%s/likes" % (object_id))
+         if like:
+             requests.post(comments_like_endpoint_url, data=params, timeout=5)
+         else:
+             requests.delete(comments_like_endpoint_url, data=params)
+ 
++    def _facebook_update_likes(self, like):
++        """Like the post in SUDO for social users."""
++        for post in self:
++            if post.facebook_user_likes == like:
++                continue
++
++            increment = 1 if like else -1
++            likes_count = max(0, post.facebook_likes_count + increment)
++            reactions_count = json.loads(post.facebook_reactions_count or '{}')
++            reactions_count['LIKE'] = max(0, reactions_count.get('LIKE', 0) + increment)
++            post.sudo().write({
++                'facebook_likes_count': likes_count,
++                'facebook_reactions_count': json.dumps(reactions_count),
++                'facebook_user_likes': like,
++            })
++
+     # ========================================================
+     # MISC / UTILITY
+     # ========================================================
+@@ -185,7 +203,12 @@
+         }
+         if "from" not in comment:
+             comment["from"] = {"name": _("Unknown")}
++
+         if comment.get('attachment', {}).get('type') == 'sticker':
+             # stickers are just image
+             comment['attachment']['type'] = 'photo'
++        elif comment.get('attachment', {}).get('type') == 'animated_image_share':
++            # GIF from the Facebook "GIF button"
++            comment['attachment']['type'] = 'animated_image_video'
++
+         return comment
+Only in 20/social_facebook: utils.py
+diff -ru 19/social_facebook/views/res_config_settings_views.xml 20/social_facebook/views/res_config_settings_views.xml
+--- 19/social_facebook/views/res_config_settings_views.xml	2025-09-17 04:14:29
++++ 20/social_facebook/views/res_config_settings_views.xml	2026-10-27 00:03:10
+@@ -17,6 +17,11 @@
+                             <label for="facebook_client_secret" string="App Secret" class="col-3 col-lg-3 o_form_label"/>
+                             <field name="facebook_client_secret" password="True" class="oe_inline"/>
+                         </div>
++                        <div class="mt16">
++                            <label for="facebook_webhook_verify_token" string="Webhook"
++                                class="col-3 col-lg-3 o_form_label"/>
++                            <field name="facebook_webhook_verify_token" password="True" class="oe_inline" placeholder="Verify Token"/>
++                        </div>
+                     </div>
+                 </setting>
+             </xpath>
+diff -ru 19/social_facebook/views/social_facebook_templates.xml 20/social_facebook/views/social_facebook_templates.xml
+--- 19/social_facebook/views/social_facebook_templates.xml	2025-09-17 04:14:29
++++ 20/social_facebook/views/social_facebook_templates.xml	2026-10-27 00:03:10
+@@ -2,30 +2,31 @@
+ <odoo>
+ <data>
+     <template id="facebook_preview" t-name="Facebook Preview">
+-        <div class="o_social_preview o_social_facebook_preview bg-white border rounded overflow-hidden">
+-            <div class="o_social_preview_header d-flex m-3">
++        <div class="o_social_preview o_social_facebook_preview bg-white border rounded overflow-hidden"
++            t-if="not facebook_post_as_story">
++            <div class="o_social_preview_header d-flex mx-3 mt-3 mb-2">
+                 <span class="o_social_preview_icon_wrapper d-inline-block rounded-circle overflow-hidden me-2">
+-                    <i class="fa fa-facebook text-white fa-2x"/>
++                    <i class="oi oi-2x text-white pt-1" data-icon="oi_facebook"/>
+                 </span>
+ 
+                 <div class="o_social_preview_author">
+                     <b class="d-block mb-2">Facebook Page</b>
+                     <div class="text-muted o_social_preview_description">
+                         Published by Facebook Page •
+-                        <a t-if="live_post_link" t-attf-href="#{live_post_link}" target="blank"><time t-esc="published_date"/></a>
+-                        <t t-else=""><time t-esc="published_date"/></t> • <i class="fa fa-globe"/>
++                        <a t-if="live_post_link" t-attf-href="#{live_post_link}" target="blank"><time t-out="published_date"/></a>
++                        <t t-else=""><time t-out="published_date"/></t> • <i class="oi" data-icon="public"/>
+                     </div>
+                 </div>
+             </div>
+-            <div class="o_social_preview_message pb-3 mx-3" t-out="message"/>
++            <div class="o_social_preview_message pb-1 mx-3" t-if="not facebook_post_as_story" t-out="message"/>
+             <a t-att-href="link_preview.get('url')" target="_blank">
+-                <div t-attf-class="o_social_stream_post_image d-flex overflow-hidden
+-                    {{link_preview.get('url') and 'o_social_stream_post_image_clickable'}}">
++                <div t-attf-class="o_social_stream_post_content d-flex overflow-hidden
++                    {{link_preview.get('url') and 'o_social_stream_post_content_clickable'}}">
+                     <t t-foreach="image_urls" t-as="image_url" >
+-                        <div t-if="image_url_index == 1 and len(image_urls) > 2" class="o_social_stream_post_image_more position-relative d-flex ms-1">
++                        <div t-if="image_url_index == 1 and len(image_urls) > 2" class="o_social_stream_post_content_more position-relative d-flex ms-1">
+                             <img t-att-src="image_url" alt="Post Image" />
+-                            <div class="o_social_stream_post_image_more_overlay d-flex align-items-center h-100 w-100 text-white justify-content-center position-absolute h1 m-0 pe-none" style="user-select: none;">
+-                                +<t t-esc="len(image_urls) - 2"/>
++                            <div class="o_social_stream_post_content_more_overlay d-flex align-items-center h-100 w-100 text-white justify-content-center position-absolute h1 m-0 pe-none">
++                                +<t t-out="len(image_urls) - 2"/>
+                             </div>
+                         </div>
+                         <div t-elif="image_url_index &lt; 2" class="w-100">
+@@ -40,6 +41,29 @@
+                     <small t-if="link_preview.get('description')" t-out="link_preview['description']"/>
+                 </div>
+             </a>
++            <div t-if="facebook_first_comment" class="o_social_comment px-3 py-2 w-100 bg-white">
++                <hr class="my-2"/>
++                <span>1 Comment</span>
++            </div>
++        </div>
++        <div t-elif="image_urls" class="o_social_preview o_social_facebook_preview overflow-hidden o_social_story m-auto h-100 rounded d-flex flex-column justify-content-between">
++            <!-- Story preview -->
++            <div>
++                <div class="o_social_preview_progress d-flex flex-row justify-content-around align-items-center text-white">
++                    <hr class="my-1"/>
++                    <hr class="my-1"/>
++                    <hr class="my-1"/>
++                </div>
++                <div class="d-flex flex-row align-items-center text-white p-1 o_social_header">
++                    <span class="o_social_preview_icon_wrapper d-inline-block rounded-circle overflow-hidden me-2">
++                        <i class="oi oi-2x" data-icon="oi_facebook"/>
++                    </span>
++                    <b class="me-1">My Page</b> <span>7h</span>
++                </div>
++            </div>
++            <div class="d-flex flex-row align-items-center w-100 justify-content-between flex-grow-1 overflow-hidden">
++                <img t-att-src="image_urls[0]" class="w-100 object-fit-contain"/>
++            </div>
+         </div>
+     </template>
+ </data>
+diff -ru 19/social_facebook/views/social_post_template_views.xml 20/social_facebook/views/social_post_template_views.xml
+--- 19/social_facebook/views/social_post_template_views.xml	2025-09-17 04:14:29
++++ 20/social_facebook/views/social_post_template_views.xml	2026-10-27 00:03:10
+@@ -22,20 +22,33 @@
+                     invisible="not has_facebook_account">
+                     <group>
+                         <group>
++                            <field name="facebook_post_as_story" string="Post as Story"/>
++                            <div class="o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small o_social_facebook_label_message" colspan="2"
++                                invisible="facebook_post_as_story">Message</div>
+                             <field name="facebook_message"
+-                                required="is_split_per_media and has_facebook_account and not facebook_image_ids"
+-                                string="Message"/>
++                                invisible="facebook_post_as_story"
++                                required="is_split_per_media and has_facebook_account and (not facebook_image_ids or facebook_post_as_story)"
++                                nolabel="1" colspan="2" widget="social_post_message_facebook_field"/>
++                            <div class="o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small o_social_facebook_label_media" colspan="2">Media</div>
+                             <field name="facebook_image_ids"
+-                                widget="many2many_binary"
+-                                required="is_split_per_media and has_facebook_account and not facebook_message"
+-                                string="Images"/>
++                                class="o_social_post_image"
++                                required="is_split_per_media and has_facebook_account and (not facebook_image_ids or facebook_post_as_story)"
++                                mode="kanban"
++                                add-label="Add Media"
++                                colspan="2"
++                                nolabel="1"
++                                widget="x2_many_media_viewer"
++                                options="{'force_create': True, 'set_attachment_id': True, 'only_image': True}"/>
++                            <div class="o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small o_social_facebook_label_first_comment" colspan="2"
++                                invisible="facebook_post_as_story">Scheduled first comment</div>
++                            <field name="facebook_first_comment" colspan="2" nolabel="1" invisible="facebook_post_as_story" placeholder="Comment your own post to get the conversation going or share some extra content."/>
+                         </group>
+-                        <group invisible="not display_facebook_preview">
++                        <group invisible="not display_facebook_preview" class="o_social_post_preview_group">
+                             <field name="facebook_preview" nolabel="1"
+                                 widget="social_post_preview"
+                                 media_type="facebook_preview"
+                                 readonly="1"
+-                                class="o_social_preview_wrapper m-0 px-4 py-4 bg-200"/>
++                                class="o_social_preview_wrapper m-0 px-4 py-4 bg-200 h-100"/>
+                         </group>
+                     </group>
+                 </page>
+Only in 20/social_facebook/views: social_post_views.xml
+diff -ru 19/social_facebook/views/social_stream_post_views.xml 20/social_facebook/views/social_stream_post_views.xml
+--- 19/social_facebook/views/social_stream_post_views.xml	2025-09-17 04:14:29
++++ 20/social_facebook/views/social_stream_post_views.xml	2026-10-27 00:03:10
+@@ -6,7 +6,7 @@
+         <field name="model">social.stream.post</field>
+         <field name="inherit_id" ref="social.social_stream_post_view_kanban"/>
+         <field name="arch" type="xml">
+-            <xpath expr="//field[@name='stream_post_image_urls']" position="after">
++            <xpath expr="//field[@name='stream_post_content_json']" position="after">
+                 <field name="facebook_author_id"/>
+                 <field name="facebook_user_likes"/>
+                 <field name="facebook_is_event_post"/>
+@@ -20,20 +20,31 @@
+ 
+             <xpath expr="//div[hasclass('o_social_stream_post_message')]" position="inside">
+                 <div class="o_social_stream_post_facebook_stats px-2 d-flex justify-content-around"
++                    t-att-class="{'border-top pt-2': !has_attachments}"
+                     t-if="record.media_type.raw_value === 'facebook'">
+-                    <div t-attf-class="o_social_facebook_likes o_social_subtle_btn d-flex ps-2 pe-2 #{record.facebook_user_likes.raw_value ? 'o_social_facebook_user_likes' : ''}">
+-                        <field name="facebook_reactions_count" invisible="not facebook_likes_count" widget="social_facebook_reactions"/>
+-                        <span invisible="facebook_likes_count" class="fa fa-thumbs-o-up" title="Like"
+-                            t-att-class="{'me-1': record.facebook_likes_count.value !== '0'}"/>
+-                        <field invisible="not facebook_likes_count" name="facebook_likes_count" class="fw-bolder ms-1"/>
++                    <div class="d-flex flex-wrap">
++                        <div class="o_social_facebook_likes o_social_subtle_btn d-flex align-items-center border px-2"
++                        t-att-class="{'o_social_facebook_user_likes' : record.facebook_user_likes.raw_value}">
++                            <field name="facebook_reactions_count" invisible="not facebook_likes_count" widget="social_facebook_reactions"/>
++                            <span invisible="facebook_likes_count" class="oi" data-icon="thumb_up" title="Like"
++                                t-att-class="{'me-1': record.facebook_likes_count.value !== '0'}"/>
++                            <field invisible="not facebook_likes_count" name="facebook_likes_count" class="ms-1 fw-bold"/>
++                        </div>
++                        <div class="o_social_facebook_comments o_social_comments px-2"
++                             invisible="not facebook_comments_count">
++                            <field name="facebook_comments_count" class="fw-bold"/>
++                            Comments
++                        </div>
+                     </div>
+-                    <div class="o_social_facebook_comments o_social_comments o_social_subtle_btn px-2">
+-                        <i class="fa fa-comments me-1" title="Comments"/>
+-                        <field t-if="record.facebook_comments_count.value !== '0'" name="facebook_comments_count" class="fw-bold"/>
+-                    </div>
+-                    <div class="flex-grow-1 d-flex text-muted justify-content-end">
+-                        <field name="facebook_shares_count" class="me-1"/>Shares
+-                        <field name="facebook_reach" class="ms-2 me-1"/>Views
++                    <div class="d-flex flex-grow-1 justify-content-end flex-wrap px-2 text-muted">
++                        <div invisible="not facebook_shares_count" title="Share count">
++                            <field name="facebook_shares_count"/>
++                            shares
++                        </div>
++                        <div invisible="not facebook_reach" class="ps-2" title="View count">
++                            <field name="facebook_reach"/>
++                            views
++                        </div>
+                     </div>
+                 </div>
+             </xpath>
+diff -ru 19/social_linkedin/__manifest__.py 20/social_linkedin/__manifest__.py
+--- 19/social_linkedin/__manifest__.py	2025-09-17 04:14:29
++++ 20/social_linkedin/__manifest__.py	2026-10-27 00:03:10
+@@ -1,4 +1,3 @@
+-# -*- coding: utf-8 -*-
+ {
+     'name': 'Social LinkedIn',
+     'summary': 'Manage your LinkedIn accounts and schedule posts',
+@@ -8,7 +7,9 @@
+     'depends': ['social', 'iap'],
+     'data': [
+         'data/social_media_data.xml',
++        'views/social_media_views.xml',
+         'views/social_post_template_views.xml',
++        'views/social_post_views.xml',
+         'views/social_linkedin_preview.xml',
+         'views/social_stream_posts_views.xml',
+         'views/res_config_settings_views.xml',
+@@ -16,11 +17,14 @@
+     'auto_install': True,
+     'assets': {
+         'web.assets_backend': [
++            'social_linkedin/static/src/js/add_stream_modal.js',
+             'social_linkedin/static/src/js/stream_post_comment.js',
+             'social_linkedin/static/src/js/stream_post_comment_list.js',
+             'social_linkedin/static/src/js/stream_post_comments.js',
+             'social_linkedin/static/src/js/stream_post_comments_reply.js',
++            'social_linkedin/static/src/js/stream_post_kanban_dashboard.js',
+             'social_linkedin/static/src/js/stream_post_kanban_record.js',
++            'social_linkedin/static/src/js/social_post_message_linkedin_field.js',
+             ('after', 'social/static/src/js/social_post_formatter_mixin.js', 'social_linkedin/static/src/js/social_post_formatter_mixin.js'),
+             'social_linkedin/static/src/scss/social_linkedin.scss',
+             'social_linkedin/static/src/xml/**/*',
+diff -ru 19/social_linkedin/controllers/main.py 20/social_linkedin/controllers/main.py
+--- 19/social_linkedin/controllers/main.py	2025-09-17 04:14:29
++++ 20/social_linkedin/controllers/main.py	2026-10-27 00:03:10
+@@ -7,6 +7,7 @@
+ from odoo import http, _
+ from odoo.addons.social.controllers.main import SocialController
+ from odoo.addons.social.controllers.main import SocialValidationException
++from odoo.tools import consteq
+ from odoo.exceptions import UserError
+ from odoo.http import request
+ 
+@@ -18,7 +19,7 @@
+         We can receive
+         - code directly from LinkedIn
+         - access_token from IAP
+-        - state from LinkedIn/IAP, the state avoid the CSRF attack
++        - state from LinkedIn/IAP, the state avoids the CSRF attack
+         """
+         if not request.env.user.has_group('social.group_social_manager'):
+             return request.render('social.social_http_error_view',
+@@ -31,7 +32,10 @@
+ 
+             media = request.env.ref('social_linkedin.social_media_linkedin')
+ 
+-            if media.csrf_token != state:
++            csrf_token, link_personal = state.split('-')
++            link_personal = int(link_personal)
++
++            if not consteq(media._get_csrf_token(), csrf_token):
+                 return request.render('social.social_http_error_view',
+                                       {'error_message': _('There was a authentication issue during your request.')})
+ 
+@@ -39,13 +43,13 @@
+                 if not access_token:
+                     access_token = self._linkedin_get_access_token(code, media)
+ 
+-                request.env['social.account']._create_linkedin_accounts(access_token, media)
++                request.env['social.account']._create_linkedin_accounts(access_token, media, link_personal=link_personal)
+ 
+             # Both _get_linkedin_access_token and _create_linkedin_accounts may raise a SocialValidationException
+             except SocialValidationException as e:
+                 return request.render('social.social_http_error_view', {'error_message': e.get_message(), 'documentation_data': e.get_documentation_data()})
+ 
+-        return request.redirect('/odoo/action-social.action_social_stream_post')
++        return request.render('social.social_http_authentication_done')
+ 
+     # ========================================================
+     # COMMENTS / LIKES
+@@ -62,7 +66,9 @@
+         if files and files[0]:
+             attachment = files[0].read()
+         try:
+-            result = stream_post._linkedin_comment_add(message, comment_id, attachment)
++            result = stream_post._linkedin_comment_add(
++                stream_post.account_id, stream_post.linkedin_post_urn,
++                message, comment_id, attachment)
+         except UserError as e:
+             result = {'error': str(e)}
+         return json.dumps(result)
+@@ -112,8 +118,8 @@
+         :return: the access token
+         """
+         linkedin_url = 'https://www.linkedin.com/oauth/v2/accessToken'
+-        linkedin_app_id = request.env['ir.config_parameter'].sudo().get_param('social.linkedin_app_id')
+-        linkedin_client_secret = request.env['ir.config_parameter'].sudo().get_param('social.linkedin_client_secret')
++        linkedin_app_id = request.env['ir.config_parameter'].sudo().get_str('social.linkedin_app_id')
++        linkedin_client_secret = request.env['ir.config_parameter'].sudo().get_str('social.linkedin_client_secret')
+ 
+         params = {
+             'grant_type': 'authorization_code',
+diff -ru 19/social_linkedin/data/social_media_data.xml 20/social_linkedin/data/social_media_data.xml
+--- 19/social_linkedin/data/social_media_data.xml	2025-09-17 04:14:29
++++ 20/social_linkedin/data/social_media_data.xml	2026-10-27 00:03:10
+@@ -6,7 +6,7 @@
+             <field name="media_type">linkedin</field>
+             <field name="media_description">Manage your LinkedIn account and schedule posts</field>
+             <field name="max_post_length">3000</field>
+-            <field name="image" type="base64" file="social_linkedin/static/src/img/linkedin.svg"/>
++            <field name="image" type="bytes" file="social_linkedin/static/src/img/linkedin.svg"/>
+         </record>
+ 
+         <record id="stream_type_linkedin_company_post" model="social.stream.type">
+diff -ru 19/social_linkedin/models/res_config_settings.py 20/social_linkedin/models/res_config_settings.py
+--- 19/social_linkedin/models/res_config_settings.py	2025-09-17 04:14:29
++++ 20/social_linkedin/models/res_config_settings.py	2026-10-27 00:03:10
+@@ -24,28 +24,28 @@
+     @api.depends('linkedin_use_own_account')
+     def _compute_linkedin_app_id(self):
+         user_is_manager = self.env.user.has_group('social.group_social_manager')
+-        linkedin_app_id = self.env['ir.config_parameter'].sudo().get_param('social.linkedin_app_id')
++        linkedin_app_id = self.env['ir.config_parameter'].sudo().get_str('social.linkedin_app_id') or False
+         for setting in self:
+-            setting.linkedin_app_id = linkedin_app_id if user_is_manager else None
++            setting.linkedin_app_id = linkedin_app_id if user_is_manager else False
+ 
+     def _inverse_linkedin_app_id(self):
+         user_is_manager = self.env.user.has_group('social.group_social_manager')
+         for setting in self:
+             if user_is_manager:
+-                self.env['ir.config_parameter'].sudo().set_param(
++                self.env['ir.config_parameter'].sudo().set_str(
+                     'social.linkedin_app_id', setting.linkedin_app_id)
+ 
+     @api.depends('linkedin_use_own_account')
+     def _compute_linkedin_client_secret(self):
+         user_is_manager = self.env.user.has_group('social.group_social_manager')
+-        linkedin_client_secret = self.env['ir.config_parameter'].sudo().get_param('social.linkedin_client_secret')
++        linkedin_client_secret = self.env['ir.config_parameter'].sudo().get_str('social.linkedin_client_secret') or False
+         for setting in self:
+-            setting.linkedin_client_secret = linkedin_client_secret if user_is_manager else None
++            setting.linkedin_client_secret = linkedin_client_secret if user_is_manager else False
+ 
+     def _inverse_linkedin_client_secret(self):
+         user_is_manager = self.env.user.has_group('social.group_social_manager')
+         for setting in self:
+             if user_is_manager:
+-                self.env['ir.config_parameter'].sudo().set_param(
++                self.env['ir.config_parameter'].sudo().set_str(
+                     'social.linkedin_client_secret',
+                     setting.linkedin_client_secret)
+diff -ru 19/social_linkedin/models/social_account.py 20/social_linkedin/models/social_account.py
+--- 19/social_linkedin/models/social_account.py	2025-11-24 04:30:41
++++ 20/social_linkedin/models/social_account.py	2026-10-27 00:03:10
+@@ -1,7 +1,5 @@
+-# -*- coding: utf-8 -*-
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
+-import base64
+ import logging
+ import requests
+ from datetime import datetime, timedelta
+@@ -9,6 +7,7 @@
+ 
+ from odoo import _, models, fields, api
+ from odoo.exceptions import UserError
++from odoo.tools import BinaryBytes
+ from odoo.tools.urls import urljoin as url_join
+ 
+ from odoo.addons.social.controllers.main import SocialValidationException
+@@ -22,7 +21,9 @@
+ 
+     linkedin_account_urn = fields.Char('LinkedIn Account URN', readonly=True, help='LinkedIn Account URN')
+     linkedin_account_id = fields.Char('LinkedIn Account ID', compute='_compute_linkedin_account_id')
+-    linkedin_access_token = fields.Char('LinkedIn access token', readonly=True, help='The access token is used to perform request to the REST API')
++    linkedin_access_token = fields.Char('LinkedIn access token', readonly=True, help='The access token is used to perform request to the REST API',
++        groups=fields.NO_ACCESS)
++    linkedin_is_personal_account = fields.Boolean('LinkedIn Is Personal Account', compute='_compute_linkedin_is_personal_account')
+ 
+     @api.depends('linkedin_account_urn')
+     def _compute_linkedin_account_id(self):
+@@ -36,12 +37,18 @@
+             else:
+                 social_account.linkedin_account_id = False
+ 
++    @api.depends('linkedin_is_personal_account')
+     def _compute_stats_link(self):
+         linkedin_accounts = self._filter_by_media_types(['linkedin'])
+         super(SocialAccount, (self - linkedin_accounts))._compute_stats_link()
+ 
+         for account in linkedin_accounts:
+-            account.stats_link = 'https://www.linkedin.com/company/%s/admin/analytics/visitors/' % account.linkedin_account_id
++            if not account.linkedin_is_personal_account:
++                account.user_link = f'https://www.linkedin.com/company/{account.linkedin_account_id}'
++                account.stats_link = f'{account.user_link}/admin/analytics/visitors/'
++            else:
++                account.user_link = False
++                account.stats_link = False
+ 
+     def _compute_statistics(self):
+         linkedin_accounts = self._filter_by_media_types(['linkedin'])
+@@ -56,23 +63,96 @@
+             # store statistics
+             account.write(all_stats_dict)
+ 
+-    def _linkedin_fetch_followers_count(self):
++    @api.depends('linkedin_account_urn')
++    def _compute_linkedin_is_personal_account(self):
++        for account in self:
++            urn = account.linkedin_account_urn or ''
++            account.linkedin_is_personal_account = urn and not urn.startswith("urn:li:organization:")
++
++    def _get_linkedin_access_token(self):
++        """Return the access token to use for API calls."""
++        self.ensure_one()
++        self.check_access("read")
++        return self.sudo().linkedin_access_token
++
++    def _get_social_account_values(self):
++        self.ensure_one()
++        return {
++            **super()._get_social_account_values(),
++            'linkedin_is_personal_account': self.linkedin_is_personal_account,
++        }
++
++    def _linkedin_fetch_followers_count(self, last_30d=False):
+         """Fetch number of followers from the LinkedIn API."""
+         self.ensure_one()
+-        endpoint = url_join(self.env['social.media']._LINKEDIN_ENDPOINT, 'networkSizes/urn:li:organization:%s' % self.linkedin_account_id)
+-        # removing X-Restli-Protocol-Version header for this endpoint as it is not required according to LinkedIn Doc.
+-        # using this header with an endpoint that doesn't support it will cause the request to fail
+-        headers = self._linkedin_bearer_headers()
+-        headers.pop('X-Restli-Protocol-Version', None)
+-        response = requests.get(
+-            endpoint,
+-            params={'edgeType': 'COMPANY_FOLLOWED_BY_MEMBER'},
+-            headers=headers,
+-            timeout=3)
+-        if response.status_code != 200:
+-            return 0
+-        return response.json().get('firstDegreeSize', 0)
++        follower_count = 0
+ 
++        if self.linkedin_is_personal_account:
++            # https://learn.microsoft.com/en-us/linkedin/marketing/community-management/members/follower-statistics
++            endpoint = url_join(self.env['social.media']._LINKEDIN_ENDPOINT, 'memberFollowersCount')
++            if last_30d:
++                end = datetime.now() + timedelta(days=1)
++                start = datetime.now() - timedelta(days=30)
++                endpoint += f'?q=dateRange&dateRange=(start:(year:{start.year},month:{start.month},day:{start.day}),end:(year:{end.year},month:{end.month},day:{end.day}))'
++            else:
++                endpoint += '?q=me'
++
++            response = requests.get(
++                endpoint,
++                headers=self._linkedin_bearer_headers(),
++                timeout=3)
++
++            if response.ok:
++                follower_count = sum(
++                    el.get('memberFollowersCount', 0)
++                    for el in response.json().get('elements', [])
++                )
++            else:
++                _logger.error('Failed to get the personal account followers: %s', response.text)
++
++        elif last_30d:
++            # The LinkedIn API time interval take timestamp in milliseconds
++            end = int((datetime.now() + timedelta(days=1)).timestamp() * 1000)
++            start = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
++            endpoint = url_join(self.env['social.media']._LINKEDIN_ENDPOINT, 'organizationalEntityFollowerStatistics')
++            endpoint += f'?timeIntervals=(timeRange:(start:{start},end:{end}),timeGranularityType:MONTH)'
++            params = {
++              "q": "organizationalEntity",
++              "organizationalEntity": self.linkedin_account_urn,
++            }
++            response = requests.get(
++                endpoint,
++                params=params,
++                headers=self._linkedin_bearer_headers(),
++                timeout=3)
++
++            if response.ok:
++                follower_count = sum(
++                    sum(el.get('followerGains', {}).values())
++                    for el in response.json().get('elements', [])
++                )
++            else:
++                _logger.error('Failed to get the page followers trend: %s', response.text)
++
++        else:
++            endpoint = url_join(self.env['social.media']._LINKEDIN_ENDPOINT, f'networkSizes/{self.linkedin_account_urn}')
++            # removing X-Restli-Protocol-Version header for this endpoint as it is not required according to LinkedIn Doc.
++            # using this header with an endpoint that doesn't support it will cause the request to fail
++            headers = self._linkedin_bearer_headers()
++            headers.pop('X-Restli-Protocol-Version', None)
++            response = requests.get(
++                endpoint,
++                params={'edgeType': 'COMPANY_FOLLOWED_BY_MEMBER'},
++                headers=headers,
++                timeout=3)
++
++            if response.ok:
++                follower_count = response.json().get('firstDegreeSize', 0)
++            else:
++                _logger.error('Failed to get the page followers: %s', response.text)
++
++        return follower_count
++
+     def _compute_statistics_linkedin(self, last_30d=False):
+         """Fetch statistics from the LinkedIn API.
+ 
+@@ -88,17 +168,24 @@
+         """
+         self.ensure_one()
+ 
++        if self.linkedin_is_personal_account:
++            return {
++                'audience': self._linkedin_fetch_followers_count(last_30d),
++                'engagement': 0,
++                'stories': 0,
++            }
++
+         endpoint = url_join(self.env['social.media']._LINKEDIN_ENDPOINT, 'organizationalEntityShareStatistics')
+         params = {
+             'q': 'organizationalEntity',
+-            'organizationalEntity': self.linkedin_account_urn
++            'organizationalEntity': self.linkedin_account_urn,
+         }
+ 
+         if last_30d:
+             # The LinkedIn API take timestamp in milliseconds
+-            end = int((datetime.now() + timedelta(days=2)).timestamp() * 1000)
++            end = int((datetime.now() + timedelta(days=1)).timestamp() * 1000)
+             start = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
+-            endpoint += '?timeIntervals=%s' % '(timeRange:(start:%i,end:%i),timeGranularityType:MONTH)' % (start, end)
++            endpoint += f'?timeIntervals=(timeRange:(start:{start},end:{end}),timeGranularityType:MONTH)'
+ 
+         response = requests.get(
+             endpoint,
+@@ -109,10 +196,10 @@
+         if response.status_code != 200:
+             return {}
+ 
+-        data = response.json().get('elements', [{}])[0].get('totalShareStatistics', {})
++        data = (response.json().get('elements') or [{}])[0].get('totalShareStatistics', {})
+ 
+         return {
+-            'audience': self._linkedin_fetch_followers_count(),
++            'audience': self._linkedin_fetch_followers_count(last_30d),
+             'engagement': data.get('clickCount', 0) + data.get('likeCount', 0) + data.get('commentCount', 0),
+             'stories': data.get('shareCount', 0) + data.get('shareMentionsCount', 0),
+         }
+@@ -129,7 +216,7 @@
+ 
+     def _linkedin_bearer_headers(self, linkedin_access_token=None):
+         if linkedin_access_token is None:
+-            linkedin_access_token = self.linkedin_access_token
++            linkedin_access_token = self._get_linkedin_access_token()
+         return {
+             'Authorization': 'Bearer %s' % linkedin_access_token,
+             'cache-control': 'no-cache',
+@@ -137,8 +224,33 @@
+             'LinkedIn-Version': '202511',
+         }
+ 
+-    def _get_linkedin_accounts(self, linkedin_access_token):
++    def _get_linkedin_accounts(self, linkedin_access_token, link_personal=False):
+         """Make an API call to get all LinkedIn pages linked to the actual access token."""
++        # https://learn.microsoft.com/en-us/linkedin/shared/integrations/people/profile-api
++        if link_personal:
++            response = requests.get(
++                "https://api.linkedin.com/v2/me",
++                headers=self._linkedin_bearer_headers(linkedin_access_token),
++                timeout=5,
++            )
++            if not response.ok:
++                raise SocialValidationException(_('An error occurred when fetching your account: “%s”.', response.text))
++
++            user = response.json()
++            user_name = ' '.join(filter(bool, (user.get('localizedLastName'), user.get('localizedFirstName'))))
++            user_values = {
++                'name': user_name,
++                'linkedin_account_urn': f"urn:li:person:{user.get('id')}",
++                'linkedin_access_token': linkedin_access_token,
++                'social_account_handle': user.get('vanityName'),
++            }
++            user_image_id = user.get('profilePicture', {}).get('displayImage', '').split(':')[-1]
++            image_url_by_id = self._linkedin_request_images([user_image_id], linkedin_access_token)
++            if image_url := image_url_by_id.get(user_image_id):
++                image_data = requests.get(image_url, timeout=10).content
++                user_values['image'] = image_data and BinaryBytes(image_data)
++            return [user_values]
++
+         response = self._linkedin_request(
+             'organizationAcls',
+             params={
+@@ -177,24 +289,23 @@
+         for account_id, organization in organization_results.items():
+             image_id = urn_to_id(organization.get('logoV2', {}).get('original'))
+             image_url = image_id and image_url_by_id.get(image_id)
+-            image_data = image_url and requests.get(image_url, timeout=10).content
++            image_data = BinaryBytes(requests.get(image_url, timeout=10).content) if image_url else False  # FIXME check response status
+             accounts.append({
+                 'name': organization.get('localizedName'),
+                 'linkedin_account_urn': f"urn:li:organization:{account_id}",
+                 'linkedin_access_token': linkedin_access_token,
+                 'social_account_handle': organization.get('vanityName'),
+-                'image': base64.b64encode(image_data) if image_data else False,
++                'image': image_data,
+             })
+-
+         return accounts
+ 
+-    def _create_linkedin_accounts(self, access_token, media):
+-        linkedin_accounts = self._get_linkedin_accounts(access_token)
++    def _create_linkedin_accounts(self, access_token, media, link_personal=False):
++        linkedin_accounts = self._get_linkedin_accounts(access_token, link_personal=link_personal)
+         if not linkedin_accounts:
+             message = _('You need a Business Account to post on LinkedIn with Odoo Social.\n Please create one and make sure it is linked to your account')
+             documentation_link = 'https://business.linkedin.com/marketing-solutions/linkedin-pages'
+             documentation_link_label = _('Read More about Business Accounts')
+-            documentation_link_icon_class = 'fa fa-linkedin'
++            documentation_link_icon_class = 'oi_linkedin'
+             raise SocialValidationException(message, documentation_link, documentation_link_label, documentation_link_icon_class)
+ 
+         social_accounts = self.sudo().with_context(active_test=False).search([
+@@ -230,17 +341,18 @@
+                 })
+                 accounts_to_create.append(account)
+ 
+-        self.create(accounts_to_create)
++        self.sudo().create(accounts_to_create)
+ 
+     def _create_default_stream_linkedin(self):
+         """Create a stream for each organization page."""
+         page_posts_stream_type = self.env.ref('social_linkedin.stream_type_linkedin_company_post')
+ 
++        # Add stream for each page, but skip personal account
+         streams_to_create = [{
+             'media_id': account.media_id.id,
+             'stream_type_id': page_posts_stream_type.id,
+-            'account_id': account.id
+-        } for account in self if account.linkedin_account_urn]
++            'account_id': account.id,
++        } for account in self if account.linkedin_account_urn and not account.linkedin_is_personal_account]
+ 
+         if streams_to_create:
+             self.env['social.stream'].create(streams_to_create)
+@@ -302,6 +414,84 @@
+             timeout=5,
+         )
+ 
++    @api.model
++    def search_mention_suggestions(self, search_term, media_type):
++        """
++        This override for LinkedIn is a bit more complex to process since their API uses a really specific
++        system.
++
++        First, we search users that have the same vanityName as the one provided by the
++        mention. A `vanityName` is the public identifying a specific Linkedin
++        Profile/Page, e.g. `https://www.linkedin.com/in/vanityName/` for a user and
++        `https://www.linkedin.com/company/vanityName/` for a company.
++
++        If we find a match then we use the info provided by the API and search for the
++        profile image to display the correct user on the widget.
++        If we don't find a match there, the search is then done for organizations as it
++        may not be a user's `vanityName`.
++        """
++        if media_type != "linkedin":
++            return super().search_mention_suggestions(search_term, media_type)
++
++        if not search_term:
++            return False
++        linkedin_account = self.env['social.account'].search([("media_type", "=", media_type)], limit=1)
++        response = linkedin_account._linkedin_request(
++            "vanityUrl",
++            params={
++                'q': "vanityUrlAsOrganization",
++                'vanityUrl': f"https://www.linkedin.com/in/{search_term}",
++                'organization': linkedin_account.linkedin_account_urn
++            },
++            linkedin_access_token=linkedin_account._get_linkedin_access_token()
++        )
++
++        # No user found or the endpoint errored out, let's search on organizations
++        if not response.ok:
++            response = linkedin_account._linkedin_request(
++                "organizations",
++                params={
++                    'q': "vanityName",
++                    'vanityName': search_term
++                },
++                fields=("id", "localizedDescription", "localizedName", "logoV2:(original)"),
++                linkedin_access_token=linkedin_account._get_linkedin_access_token(),
++            )
++            if not response.ok:
++                _logger.error("The request encountered an issue and couldn't retrieve the organization linked to %s", search_term)
++                return []
++
++            elements_returned_json = response.json().get('elements', [{}])
++            if not elements_returned_json or not (elements_returned_json := elements_returned_json[0]):
++                return []
++
++            member_id = f"urn:li:organization:{elements_returned_json.get('id')}"
++        else:
++            member_id = response.json().get('elements', [{}])[0].get('member')
++            if member_id is None:
++                _logger.warning("No member has been returned for %s", search_term)
++                return []
++
++            # TODO @THJO: when the endpoint is deprecated update it (remove or change).
++            response = requests.get(
++                f"https://api.linkedin.com/v2/people/(id:{urn_to_id(member_id)})",
++                headers=linkedin_account._linkedin_bearer_headers(),
++                timeout=5)
++            elements_returned_json = response.json()
++
++        element_found = {
++            'name': search_term,
++            'full_name': " ".join([elements_returned_json.get('localizedFirstName', ''), elements_returned_json.get('localizedLastName', ''), elements_returned_json.get('localizedName', '')]).strip() or search_term,
++            'description': elements_returned_json.get("localizedHeadline", '') or elements_returned_json.get("localizedDescription", ''),
++            'member': member_id,
++            'vanity_name': search_term,
++        }
++        image_id = elements_returned_json.get('profilePicture', {}).get('displayImage') or elements_returned_json.get('logoV2', {}).get('original')
++        if image_id is not None:
++            image_url_by_id = linkedin_account._linkedin_request_images([image_id], linkedin_access_token=linkedin_account._get_linkedin_access_token())
++            element_found['profile_image_url'] = image_url_by_id.get(urn_to_id(image_id))
++        return [element_found]
++
+     def _linkedin_request_images(self, images_ids, linkedin_access_token=None):
+         """Make an API call to get the downloadable URL of the images.
+ 
+@@ -320,6 +510,7 @@
+         return {
+             urn_to_id(image_urn): image_values['downloadUrl']
+             for image_urn, image_values in response.json().get('results', {}).items()
++            if 'downloadUrl' in image_values
+         } if response.ok else {}
+ 
+     def _linkedin_upload_image(self, image_data):
+diff -ru 19/social_linkedin/models/social_live_post.py 20/social_linkedin/models/social_live_post.py
+--- 19/social_linkedin/models/social_live_post.py	2025-09-17 04:14:29
++++ 20/social_linkedin/models/social_live_post.py	2026-10-27 00:03:10
+@@ -2,12 +2,13 @@
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
+ import contextlib
++import json
+ import logging
+ import requests
+ from urllib.parse import urlparse
+ import re
+ 
+-from odoo import models, fields, tools, _
++from odoo import _, fields, models, tools
+ from odoo.addons.mail.tools import link_preview
+ from odoo.exceptions import UserError
+ 
+@@ -26,6 +27,12 @@
+         for post in linkedin_live_posts:
+             post.live_post_link = 'https://www.linkedin.com/feed/update/%s' % post.linkedin_post_id
+ 
++    def _compute_has_metrics(self):
++        super()._compute_has_metrics()
++        linkedin_live_posts = self._filter_by_media_types(['linkedin'])
++        linkedin_live_posts.has_likes = True
++        linkedin_live_posts.has_comments = True
++
+     def _refresh_statistics(self):
+         super()._refresh_statistics()
+         accounts = self.env['social.account'].search([('media_type', '=', 'linkedin')])
+@@ -59,7 +66,10 @@
+ 
+                     like_count = sum(like.get('count', 0) for like in stats.get('reactionSummaries', {}).values())
+                     comment_count = stats.get('commentSummary', {}).get('count', 0)
+-                    linkedin_post_ids[urn].update({'engagement': like_count + comment_count})
++                    linkedin_post_ids[urn].update({
++                        'likes_count': like_count,
++                        'comments_count': comment_count,
++                    })
+ 
+     def _post(self):
+         linkedin_live_posts = self._filter_by_media_types(['linkedin'])
+@@ -83,7 +93,7 @@
+                 try:
+                     images_urn = [
+                         live_post.account_id._linkedin_upload_image(
+-                            image_id.with_context(bin_size=False).raw)
++                            image_id.raw.content)
+                         for image_id in live_post.image_ids
+                     ]
+                 except UserError as e:
+@@ -106,7 +116,7 @@
+                 tracker_code = urlparse(url_in_message).path.split('/r/')[-1]
+                 link_tracker = self.env['link.tracker'].search([
+                     ('link_code_ids.code', '=', tracker_code),
+-                    ('source_id', '=', live_post.post_id.source_id.id),
++                    ('utm_reference', '=', f'{live_post.post_id._name},{live_post.post_id.id}'),
+                 ], limit=1)
+                 original_url = link_tracker.url or url_in_message
+                 data['content'] = {
+@@ -120,7 +130,7 @@
+                 if image_url := preview.get('og_image'):
+                     with contextlib.suppress(Exception):
+                         if (image_response := requests.get(image_url, timeout=3)).ok:
+-                            image_urn = self.account_id._linkedin_upload_image(image_response.content)
++                            image_urn = live_post.account_id._linkedin_upload_image(image_response.content)
+                             data['content']['article']['thumbnail'] = image_urn
+ 
+             response = live_post.account_id._linkedin_request('posts', json=data)
+@@ -132,6 +142,17 @@
+                     'failure_reason': False,
+                     'linkedin_post_id': post_id,
+                 }
++                if live_post.post_id.linkedin_first_comment:
++                    comment = self.env['mail.render.mixin'].sudo()._shorten_links_text(
++                        live_post.post_id.linkedin_first_comment,
++                        live_post._get_utm_values()
++                    )
++                    with contextlib.suppress(Exception):
++                        self.env['social.stream.post']._linkedin_comment_add(
++                            live_post.account_id,
++                            post_id,
++                            comment,
++                        )
+             else:
+                 try:
+                     response_json = response.json()
+@@ -144,7 +165,7 @@
+ 
+                 if response_json.get('serviceErrorCode') == 65600:
+                     # Invalid access token
+-                    self.account_id._action_disconnect_accounts(response)
++                    live_post.account_id._action_disconnect_accounts(response)
+ 
+             live_post.write(values)
+ 
+@@ -153,6 +174,12 @@
+         Replaces the special characters `(){}<>[]_` with escaped versions of themselves, i.e. `\\(\\)\\{\\}\\<\\>\\[\\]`.
+         https://learn.microsoft.com/en-us/linkedin/marketing/integrations/community-management/shares/little-text-format?view=li-lms-2023-03#text
+         """
+-        pattern = r"[\(\)\<\>\{\}\[\]\_\|\*\~\#\@]"
++        pattern = r"[\(\)\<\>\{\}\[\]\_\|\*\~\#]"
+         output_string = re.sub(pattern, lambda match: r"\{}".format(match.group(0)), input_string)
++        for mention, values in json.loads(self.post_id.social_post_mentions or '{}').get('linkedin', {}).items():
++            def format_to_linkedin_mention(match):
++                member = values.get('member', '')
++                full_name = values.get('full_name') or mention
++                return f"@[{full_name}]({member})"
++            output_string = re.sub(fr"@{re.escape(mention)}", format_to_linkedin_mention, output_string)
+         return output_string
+diff -ru 19/social_linkedin/models/social_media.py 20/social_linkedin/models/social_media.py
+--- 19/social_linkedin/models/social_media.py	2025-09-17 04:14:29
++++ 20/social_linkedin/models/social_media.py	2026-10-27 00:03:10
+@@ -13,7 +13,8 @@
+     _inherit = 'social.media'
+ 
+     _LINKEDIN_ENDPOINT = 'https://api.linkedin.com/rest/'
+-    _LINKEDIN_SCOPE = 'r_basicprofile r_organization_followers w_member_social w_member_social_feed rw_organization_admin w_organization_social w_organization_social_feed r_organization_social r_organization_social_feed'
++    _LINKEDIN_PAGE_SCOPES = 'r_organization_followers rw_organization_admin w_organization_social w_organization_social_feed r_organization_social r_organization_social_feed'
++    _LINKEDIN_PERSONAL_SCOPES = 'r_basicprofile r_member_profileAnalytics w_member_social r_organization_social_feed'
+ 
+     media_type = fields.Selection(selection_add=[('linkedin', 'LinkedIn')])
+ 
+@@ -23,9 +24,9 @@
+         if self.media_type != 'linkedin':
+             return super()._action_add_account()
+ 
+-        linkedin_use_own_account = self.env['ir.config_parameter'].sudo().get_param('social.linkedin_use_own_account')
+-        linkedin_app_id = self.env['ir.config_parameter'].sudo().get_param('social.linkedin_app_id')
+-        linkedin_client_secret = self.env['ir.config_parameter'].sudo().get_param('social.linkedin_client_secret')
++        linkedin_use_own_account = self.env['ir.config_parameter'].sudo().get_str('social.linkedin_use_own_account')
++        linkedin_app_id = self.env['ir.config_parameter'].sudo().get_str('social.linkedin_app_id')
++        linkedin_client_secret = self.env['ir.config_parameter'].sudo().get_str('social.linkedin_client_secret')
+ 
+         if linkedin_app_id and linkedin_client_secret and linkedin_use_own_account:
+             return self._add_linkedin_accounts_from_configuration(linkedin_app_id)
+@@ -33,33 +34,28 @@
+             return self._add_linkedin_accounts_from_iap()
+ 
+     def _add_linkedin_accounts_from_configuration(self, linkedin_app_id):
++        link_personal = bool(self.env.context.get('linkedin_link_personal'))
++        state = f"{self._get_csrf_token()}-{int(link_personal)}"
+         params = {
+             'response_type': 'code',
+             'client_id': linkedin_app_id,
+             'redirect_uri': self._get_linkedin_redirect_uri(),
+-            'state': self.csrf_token,
+-            'scope': self._LINKEDIN_SCOPE,
++            'state': state,
++            'scope': self._LINKEDIN_PERSONAL_SCOPES if link_personal else self._LINKEDIN_PAGE_SCOPES,
+         }
++        return 'https://www.linkedin.com/oauth/v2/authorization?%s' % url_encode(params)
+ 
+-        return {
+-            'type': 'ir.actions.act_url',
+-            'url': 'https://www.linkedin.com/oauth/v2/authorization?%s' % url_encode(params),
+-            'target': 'self'
+-        }
+-
+     def _add_linkedin_accounts_from_iap(self):
+-        o_redirect_uri = url_join(self.get_base_url(), 'social_linkedin/callback')
++        social_iap_endpoint = self.env['ir.config_parameter'].sudo().get_str(
++            'social.social_iap_endpoint') or self.env['social.media']._DEFAULT_SOCIAL_IAP_ENDPOINT
+ 
+-        social_iap_endpoint = self.env['ir.config_parameter'].sudo().get_param(
+-            'social.social_iap_endpoint',
+-            self.env['social.media']._DEFAULT_SOCIAL_IAP_ENDPOINT
+-        )
+-
++        link_personal = bool(self.env.context.get('linkedin_link_personal'))
++        state = f"{self._get_csrf_token()}-{int(link_personal)}"
+         iap_add_accounts_url = requests.get(url_join(social_iap_endpoint, 'api/social/linkedin/1/add_accounts'), params={
+-            'state': self.csrf_token,
+-            'scope': self._LINKEDIN_SCOPE,
+-            'o_redirect_uri': o_redirect_uri,
+-            'db_uuid': self.env['ir.config_parameter'].sudo().get_param('database.uuid')
++            'state': state,
++            'scope': self._LINKEDIN_PERSONAL_SCOPES if link_personal else self._LINKEDIN_PAGE_SCOPES,
++            'o_redirect_uri': self._get_linkedin_redirect_uri(),
++            'db_uuid': self.env['ir.config_parameter'].sudo().get_str('database.uuid')
+         }, timeout=5).text
+ 
+         if iap_add_accounts_url == 'unauthorized':
+@@ -70,11 +66,7 @@
+         elif iap_add_accounts_url == 'linkedin_missing_configuration' or iap_add_accounts_url == 'missing_parameters':
+             raise UserError(_("The url that this service requested returned an error. Please contact the author of the app."))
+ 
+-        return {
+-            'type': 'ir.actions.act_url',
+-            'url': iap_add_accounts_url,
+-            'target': 'self'
+-        }
++        return iap_add_accounts_url
+ 
+     def _get_linkedin_redirect_uri(self):
+-        return url_join(self.get_base_url(), 'social_linkedin/callback')
++        return url_join(self.get_base_url(), '/social/linkedin/start_auth_process')
+diff -ru 19/social_linkedin/models/social_post.py 20/social_linkedin/models/social_post.py
+--- 19/social_linkedin/models/social_post.py	2025-09-17 04:14:29
++++ 20/social_linkedin/models/social_post.py	2026-10-27 00:03:10
+@@ -8,10 +8,18 @@
+     _inherit = 'social.post'
+ 
+     linkedin_image_ids = fields.Many2many(relation='linkedin_image_ids_rel')
++    linkedin_scheduled_date = fields.Datetime(
++        string='LinkedIn Scheduled for',
++        compute='_compute_scheduled_date_by_media',
++        store=True, readonly=False, copy=False)
+ 
+     @api.depends('live_post_ids.linkedin_post_id')
+     def _compute_stream_posts_count(self):
+         super()._compute_stream_posts_count()
++
++    @api.model
++    def _scheduled_date_fields(self):
++        return {**super()._scheduled_date_fields(), 'linkedin': 'linkedin_scheduled_date'}
+ 
+     def _get_stream_post_domain(self):
+         domain = super()._get_stream_post_domain()
+diff -ru 19/social_linkedin/models/social_post_template.py 20/social_linkedin/models/social_post_template.py
+--- 19/social_linkedin/models/social_post_template.py	2025-10-27 04:30:38
++++ 20/social_linkedin/models/social_post_template.py	2026-10-27 00:03:10
+@@ -14,9 +14,12 @@
+         'LinkedIn Message', compute='_compute_message_by_media',
+         store=True, readonly=False)
+     linkedin_image_ids = fields.Many2many(
+-        'ir.attachment', 'template_linkedin_image_ids_rel', string='LinkedIn Images',
++        'social.post.image', 'template_linkedin_image_ids_rel', string='LinkedIn Images',
+         help='Will attach images to your posts.',
+         compute='_compute_images_by_media', store=True, readonly=False, bypass_search_access=True)
++    linkedin_first_comment = fields.Text(
++        'LinkedIn First Comment', compute='_compute_first_comment_by_media',
++        store=True, readonly=False)
+ 
+     display_linkedin_preview = fields.Boolean('Display LinkedIn Preview', compute='_compute_display_linkedin_preview')
+     has_linkedin_account = fields.Boolean('Has LinkedIn Account', compute='_compute_has_linkedin_account')
+@@ -43,7 +46,7 @@
+                 and post.has_linkedin_account
+             )
+ 
+-    @api.depends(lambda self: ['linkedin_message', 'linkedin_image_ids', 'display_linkedin_preview'] + self._get_post_message_modifying_fields())
++    @api.depends(lambda self: ['linkedin_message', 'linkedin_image_ids', 'display_linkedin_preview', 'social_post_mentions', 'linkedin_first_comment'] + self._get_post_message_modifying_fields())
+     def _compute_linkedin_preview(self):
+         for post in self:
+             if not post.display_linkedin_preview:
+@@ -54,8 +57,8 @@
+             link_preview = {}
+             if post.linkedin_image_ids:
+                 image_urls = [
+-                    f'/web/image/{image._origin.id or image.id}'
+-                    for image in post.linkedin_image_ids.sorted(lambda image: image._origin.id or image.id, reverse=True)
++                    f'/web/image/social.post.image/{image._origin.id or image.id}/raw'
++                    for image in post.linkedin_image_ids.sorted(lambda image: (image.sequence, image._origin.id or image.id))
+                 ]
+             elif url := self.env["social.post"]._extract_url_from_message(post.linkedin_message):
+                 preview = self.env["mail.link.preview"].sudo()._search_or_create_from_url(url)
+@@ -72,6 +75,7 @@
+                     post.linkedin_message,
+                     'linkedin',
+                     **{field: post[field] for field in post._get_post_message_modifying_fields()}),
++                'linkedin_first_comment': post.linkedin_first_comment,
+                 'image_urls': image_urls,
+                 'link_preview': link_preview,
+             })
+@@ -85,3 +89,8 @@
+     def _images_fields(self):
+         """Return the images field per media."""
+         return {**super()._images_fields(), 'linkedin': 'linkedin_image_ids'}
++
++    @api.model
++    def _first_comment_fields(self):
++        """Return the "first comment" field per media."""
++        return {**super()._first_comment_fields(), 'linkedin': 'linkedin_first_comment'}
+diff -ru 19/social_linkedin/models/social_stream.py 20/social_linkedin/models/social_stream.py
+--- 19/social_linkedin/models/social_stream.py	2025-09-17 04:14:29
++++ 20/social_linkedin/models/social_stream.py	2026-10-27 00:03:10
+@@ -2,7 +2,6 @@
+ # Part of Odoo. See LICENSE file for full copyright and licensing details.
+ 
+ from datetime import datetime
+-from urllib.parse import urlparse
+ import re
+ 
+ from odoo import models, _
+@@ -48,7 +47,7 @@
+ 
+         stream_post_data = posts_response.json()['elements']
+ 
+-        self._prepare_linkedin_stream_post_images(stream_post_data)
++        self._prepare_linkedin_stream_post_attachments(stream_post_data)
+ 
+         linkedin_post_data = {
+             stream_post_data.get('id'): self._prepare_linkedin_stream_post_values(stream_post_data)
+@@ -104,12 +103,12 @@
+             object_ids=media_urns,
+         )
+         return {
+-            media: media_values["downloadUrl"]
++            media: {"src": media_values["downloadUrl"], "thumbnail": media_values.get('thumbnail', False)}
+             for media, media_values in response.json().get('results', {}).items()
+             if media_values.get("downloadUrl")
+         } if response.ok else {}
+ 
+-    def _prepare_linkedin_stream_post_images(self, posts_data):
++    def _prepare_linkedin_stream_post_attachments(self, posts_data):
+         """Fetch the images and videos URLs and insert their URL in posts_data."""
+         all_image_urns = set()
+         all_video_urns = set()
+@@ -117,7 +116,7 @@
+             # multi-images post
+             images = post.get('content', {}).get('multiImage', {}).get('images', [])
+             all_image_urns |= {image['id'] for image in images}
+-            # single image post
++            # single image/video post
+             if media_urn := post.get('content', {}).get('media', {}).get('id'):
+                 # make sure it's an image or a video
+                 if 'image' in media_urn:
+@@ -138,18 +137,21 @@
+             # multi-images post
+             images = post.get('content', {}).get('multiImage', {}).get('images', [])
+             for image in images:
+-                image["downloadUrl"] = url_by_urn.get(image.get("id"), '')
++                image["downloadUrl"] = url_by_urn.get(image.get("id"), {}).get('src', False)
+ 
+             # single image or video post
+             if media_urn := post.get("content", {}).get("media", {}).get("id"):
+                 if 'image' in media_urn:
+-                    post["content"]["media"]["downloadUrl"] = url_by_urn.get(media_urn, '')
++                    post["content"]["media"]["downloadUrl"] = url_by_urn.get(media_urn, {}).get('src')
++                    post["content"]["media"]["type"] = "image"
+                 elif 'video' in media_urn:
+-                    post['commentary'] = f'{post.get("commentary", "")}\n{url_by_urn.get(media_urn, "")}'.strip()
++                    post["content"]["media"]["downloadUrl"] = url_by_urn.get(media_urn, {}).get('src')
++                    post["content"]["media"]["thumbnailUrl"] = url_by_urn.get(media_urn, {}).get('thumbnail')
++                    post["content"]["media"]["type"] = "video"
+ 
+             # article thumbnail
+             if thumbnail_urn := post.get("content", {}).get("article", {}).get("thumbnail"):
+-                post["content"]["article"]["~thumbnail"] = {"downloadUrl": url_by_urn.get(thumbnail_urn, "")}
++                post["content"]["article"]["~thumbnail"] = {"downloadUrl": url_by_urn.get(thumbnail_urn, {}).get('src')}
+ 
+     def _prepare_linkedin_stream_post_values(self, post_data):
+         article = post_data.get('content', {}).get('article', {})
+@@ -162,26 +164,31 @@
+             'linkedin_author_urn': post_data.get('author'),
+             'linkedin_author_image_url': author_image,
+             'message': self._format_from_linkedin_little_text(post_data.get('commentary', '')),
+-            'stream_post_image_ids': [(5, 0)] + [(0, 0, image_value) for image_value in self._extract_linkedin_image(post_data)],
++            'stream_post_attachment_ids': [(5, 0)] + [(0, 0, content_vals) for content_vals in self._extract_linkedin_attachments(post_data)],
+             **self._extract_linkedin_article(article),
+         }
+ 
+-    def _extract_linkedin_image(self, post_data):
++    def _extract_linkedin_attachments(self, post_data):
+         # single image post
+-        single_image = post_data.get('content', {}).get('media', {}).get('downloadUrl')
+-        if single_image:
+-            return [{'image_url': self._enforce_url_scheme(single_image)}]
++        media = post_data.get('content', {}).get('media', {})
++        if attachment := media.get('downloadUrl'):
++            content_type = media.get('type')
++            return [{
++                'content_url': self._enforce_url_scheme(attachment),
++                'attachment_content_type': content_type,
++                'thumbnail_url': self._enforce_url_scheme(media.get('thumbnailUrl')) if content_type == 'video' else False
++            }]
+ 
+         # multi-images post
+         if images := post_data.get('content', {}).get('multiImage', {}).get('images', []):
+             return [
+-                {'image_url': self._enforce_url_scheme(image.get('downloadUrl'))}
++                {'content_url': self._enforce_url_scheme(image.get('downloadUrl')), 'attachment_content_type': 'image'}
+                 for image in images if image.get('downloadUrl')
+             ]
+ 
+         # article with thumbnail
+         if thumbnail_url := post_data.get('content', {}).get('article', {}).get('~thumbnail', {}).get('downloadUrl'):
+-            return [{'image_url': self._enforce_url_scheme(thumbnail_url)}]
++            return [{'content_url': self._enforce_url_scheme(thumbnail_url), 'attachment_content_type': 'image'}]
+ 
+         return []
+ 
+@@ -194,18 +201,6 @@
+             'link_description': article.get('description', ''),
+             'link_url': self._enforce_url_scheme(article.get('source'))
+         }
+-
+-    def _enforce_url_scheme(self, url):
+-        """Some URLs doesn't starts by "https://". But if we use those bad URLs
+-        in a HTML link, it will redirect the user the actual website.
+-        That's why we need to fix those URLs.
+-        e.g.:
+-            <a href="www.bad_url.com"/>
+-        """
+-        if not url or urlparse(url).scheme:
+-            return url
+-
+-        return 'https://%s' % url
+ 
+     def _format_from_linkedin_little_text(self, input_string):
+         """
+diff -ru 19/social_linkedin/models/social_stream_post.py 20/social_linkedin/models/social_stream_post.py
+--- 19/social_linkedin/models/social_stream_post.py	2025-09-17 04:14:29
++++ 20/social_linkedin/models/social_stream_post.py	2026-10-27 00:03:10
+@@ -6,7 +6,7 @@
+ from urllib.parse import quote, unquote
+ from datetime import datetime
+ 
+-from odoo import _, models, fields
++from odoo import _, api, models, fields
+ 
+ from odoo.exceptions import UserError
+ from odoo.addons.social_linkedin.utils import urn_to_id, id_to_urn
+@@ -113,13 +113,14 @@
+             _logger.error('Error during comment like / dislike %r', response.text)
+             raise UserError(_('Could not like / dislike this comment.'))
+ 
+-    def _linkedin_comment_add(self, message, comment_urn=None, attachment=None):
++    @api.model
++    def _linkedin_comment_add(self, account_id, post_urn, message, comment_urn=None, attachment=None):
+         data = {
+-            'actor': self.account_id.linkedin_account_urn,
++            'actor': account_id.linkedin_account_urn,
+             'message': {
+                 'text': message,
+             },
+-            'object': self.linkedin_post_urn,
++            'object': post_urn,
+         }
+ 
+         if comment_urn:
+@@ -128,11 +129,11 @@
+ 
+         if attachment:
+             # we upload an image with our comment
+-            image_urn = self.account_id._linkedin_upload_image(attachment)
++            image_urn = account_id._linkedin_upload_image(attachment)
+             data['content'] = [{'entity': {'image': image_urn}}]
+ 
+-        response = self.account_id._linkedin_request(
+-            f'socialActions/{quote(self.linkedin_post_urn)}/comments',
++        response = account_id._linkedin_request(
++            f'socialActions/{quote(post_urn)}/comments',
+             json=data,
+         )
+ 
+@@ -144,14 +145,14 @@
+ 
+         result = response.json()
+         result['from'] = {  # fill with our own information to save an API call
+-            'id': self.account_id.linkedin_account_urn,
+-            'name': self.account_id.name,
+-            'authorUrn': self.account_id.linkedin_account_urn,
+-            'picture': f"/web/image?model=social.account&id={self.account_id.id}&field=image",
++            'id': account_id.linkedin_account_urn,
++            'name': account_id.name,
++            'authorUrn': account_id.linkedin_account_urn,
++            'picture': f"/web/image?model=social.account&id={account_id.id}&field=image",
+             'isOrganization': True,
+         }
+         if attachment:
+-            urls = self.account_id._linkedin_request_images([urn_to_id(image_urn)])
++            urls = account_id._linkedin_request_images([urn_to_id(image_urn)])
+             result['content'][0]['url'] = next(iter(urls.values()), None)
+ 
+         return self._linkedin_format_comment(result)
+diff -ru 19/social_linkedin/views/social_linkedin_preview.xml 20/social_linkedin/views/social_linkedin_preview.xml
+--- 19/social_linkedin/views/social_linkedin_preview.xml	2025-09-17 04:14:29
++++ 20/social_linkedin/views/social_linkedin_preview.xml	2026-10-27 00:03:10
+@@ -3,26 +3,26 @@
+ <data>
+     <template id="linkedin_preview" t-name="LinkedIn Preview">
+         <div class="o_social_preview o_social_linkedin_preview bg-white border rounded overflow-hidden">
+-            <div class="o_social_preview_header d-flex align-content-between m-3">
++            <div class="o_social_preview_header d-flex align-content-between mx-3 mt-3 mb-2">
+                 <span class="o_social_preview_icon_wrapper overflow-hidden me-2">
+-                    <i class="fa fa-linkedin text-white fa-2x"/>
++                    <i class="oi oi-2x text-white" data-icon="oi_linkedin"/>
+                 </span>
+                 <div class="o_social_preview_author">
+                     <div><b>LinkedIn Post</b></div>
+-                    <a t-if="live_post_link" t-attf-href="#{live_post_link}" target="blank"><small t-esc="published_date"/></a>
+-                    <t t-else=""><small t-esc="published_date"/></t>
++                    <a t-if="live_post_link" t-attf-href="#{live_post_link}" target="blank"><small t-out="published_date"/></a>
++                    <t t-else=""><small t-out="published_date"/></t>
+                 </div>
+             </div>
+-            <div class="o_social_preview_message pb-3 mx-3" t-out="message"/>
++            <div class="o_social_preview_message pb-1 mx-3" t-out="message"/>
+             <a t-att-href="link_preview.get('url')" target="_blank">
+-                <div t-attf-class="o_social_stream_post_image d-flex overflow-hidden
+-                    {{link_preview.get('url') and 'o_social_stream_post_image_clickable'}}">
++                <div t-attf-class="o_social_stream_post_content d-flex overflow-hidden
++                    {{link_preview.get('url') and 'o_social_stream_post_content_clickable'}}">
+                     <t t-foreach="image_urls" t-as="image_url">
+                         <div t-if="image_url_index == 1 and len(image_urls) > 2"
+-                            class="o_social_stream_post_image_more position-relative d-flex ms-1">
++                            class="o_social_stream_post_content_more position-relative d-flex ms-1">
+                             <img t-att-src="image_url" alt="Post Image" />
+-                            <div class="o_social_stream_post_image_more_overlay d-flex align-items-center h-100 w-100 text-white justify-content-center position-absolute h1 m-0 pe-none" style="user-select: none;">
+-                                +<t t-esc="len(image_urls) - 2"/>
++                            <div class="o_social_stream_post_content_more_overlay d-flex align-items-center h-100 w-100 text-white justify-content-center position-absolute h1 m-0 pe-none">
++                                +<t t-out="len(image_urls) - 2"/>
+                             </div>
+                         </div>
+                         <div t-elif="image_url_index &lt; 2" class="w-100">
+@@ -36,6 +36,10 @@
+                     <small t-out="link_preview['domain']"/>
+                 </div>
+             </a>
++            <div t-if="linkedin_first_comment" class="o_social_comment px-3 py-2 w-100 bg-white">
++                <hr class="my-2"/>
++                <span>1 Comment</span>
++            </div>
+         </div>
+     </template>
+ </data>
+Only in 20/social_linkedin/views: social_media_views.xml
+diff -ru 19/social_linkedin/views/social_post_template_views.xml 20/social_linkedin/views/social_post_template_views.xml
+--- 19/social_linkedin/views/social_post_template_views.xml	2025-09-17 04:14:29
++++ 20/social_linkedin/views/social_post_template_views.xml	2026-10-27 00:03:10
+@@ -21,20 +21,29 @@
+                     invisible="not has_linkedin_account">
+                     <group>
+                         <group>
++                            <div class="o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small o_social_linkedin_label_message" colspan="2">Message</div>
+                             <field name="linkedin_message"
+                                 required="is_split_per_media and has_linkedin_account and not linkedin_image_ids"
+-                                string="Message"/>
++                                nolabel="1" colspan="2" widget="social_post_message_linkedin_field"/>
++                            <div class="o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small o_social_linkedin_label_media" colspan="2">Media</div>
+                             <field name="linkedin_image_ids"
+-                                widget="many2many_binary"
++                                class="o_social_post_image"
+                                 required="is_split_per_media and has_linkedin_account and not linkedin_message"
+-                                string="Images"/>
++                                mode="kanban"
++                                add-label="Add Media"
++                                colspan="2"
++                                nolabel="1"
++                                widget="x2_many_media_viewer"
++                                options="{'force_create': True, 'set_attachment_id': True, 'only_image': True}"/>
++                            <div class="o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small o_social_linkedin_label_first_comment" colspan="2">Scheduled first comment</div>
++                            <field name="linkedin_first_comment" colspan="2" nolabel="1" placeholder="Comment your own post to get the conversation going or share some extra content."/>
+                         </group>
+-                        <group invisible="not display_linkedin_preview">
++                        <group invisible="not display_linkedin_preview" class="o_social_post_preview_group">
+                             <field name="linkedin_preview" nolabel="1"
+                                 widget="social_post_preview"
+                                 media_type="linkedin_preview"
+                                 readonly="1"
+-                                class="o_social_preview_wrapper m-0 px-4 py-4 bg-200"/>
++                                class="o_social_preview_wrapper m-0 px-4 py-4 bg-200 h-100"/>
+                         </group>
+                     </group>
+                 </page>
+Only in 20/social_linkedin/views: social_post_views.xml
+diff -ru 19/social_linkedin/views/social_stream_posts_views.xml 20/social_linkedin/views/social_stream_posts_views.xml
+--- 19/social_linkedin/views/social_stream_posts_views.xml	2025-09-17 04:14:29
++++ 20/social_linkedin/views/social_stream_posts_views.xml	2026-10-27 00:03:10
+@@ -6,23 +6,24 @@
+         <field name="model">social.stream.post</field>
+         <field name="inherit_id" ref="social.social_stream_post_view_kanban"/>
+         <field name="arch" type="xml">
+-            <xpath expr="//field[@name='stream_post_image_urls']" position="after">
++            <xpath expr="//field[@name='stream_post_content_json']" position="after">
+                 <field name="linkedin_author_image_url"/>
+             </xpath>
+             <xpath expr="//span[hasclass('o_social_stream_post_author_image')]" position="inside">
+                 <img t-if="record.linkedin_author_image_url.raw_value" t-att-src="record.linkedin_author_image_url.raw_value" alt="Author Image" class="rounded"/>
+             </xpath>
+             <xpath expr="//div[hasclass('o_social_stream_post_message')]" position="inside">
+-                <div class="o_social_stream_post_linkedin_stats px-2 d-flex justify-content-around"
++                <div class="o_social_stream_post_linkedin_stats d-flex ps-2"
++                    t-att-class="{'border-top pt-2': !has_attachments and (record.linkedin_likes_count.raw_value || record.linkedin_comments_count.raw_value)}"
+                     t-if="record.media_type.raw_value === 'linkedin'">
+                     <div t-if="record.linkedin_likes_count.raw_value !== 0"
+-                         class="o_social_linkedin_likes o_social_subtle_btn_disabled ps-2 pe-3">
+-                        <i class="fa fa-thumbs-up me-1" title="Likes"/>
++                         class="o_social_linkedin_likes o_social_subtle_btn_disabled px-2">
++                        <i class="oi oi-filled me-1" data-icon="thumb_up" title="Likes"/>
+                         <field name="linkedin_likes_count" class="fw-bold"/>
+                     </div>
+-                    <div class="o_social_linkedin_comments o_social_comments o_social_subtle_btn px-3">
+-                        <i class="fa fa-comments me-1" title="Comments"/>
+-                        <field t-if="record.linkedin_comments_count.value !== '0'" name="linkedin_comments_count" class="fw-bold"/>
++                    <div class="o_social_linkedin_comments o_social_comments px-2" invisible="not linkedin_comments_count">
++                        <field name="linkedin_comments_count" class="fw-bold"/>
++                        Comments
+                     </div>
+                 </div>
+             </xpath>
