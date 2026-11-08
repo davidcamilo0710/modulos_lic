@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.license.stealth</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="10"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app name="license_stealth"
+                     string="Licencia Enterprise"
+                     data-string="Licencia Enterprise"
+                     logo="/odoo_license_stealth/static/description/icon.png"
+                     groups="base.group_no_one">
+                    <block title="Verificación de licencia (publisher warranty)">
+                        <setting id="license_stealth_enabled_setting"
+                                 string="Neutralizar la verificación"
+                                 help="Corta el ping a Odoo y fabrica la respuesta localmente.">
+                            <field name="license_stealth_enabled"/>
+                        </setting>
+                        <setting id="license_stealth_expiration_setting"
+                                 string="Fecha de expiración simulada"
+                                 invisible="not license_stealth_enabled">
+                            <field name="license_stealth_expiration_date"/>
+                        </setting>
+                        <setting id="license_stealth_reason_setting"
+                                 string="Motivo de expiración"
+                                 invisible="not license_stealth_enabled">
+                            <field name="license_stealth_expiration_reason"/>
+                        </setting>
+                        <setting id="license_stealth_code_setting"
+                                 string="Código Enterprise (opcional)"
+                                 invisible="not license_stealth_enabled">
+                            <field name="license_stealth_enterprise_code"/>
+                        </setting>
+                        <setting id="license_stealth_users_setting"
+                                 string="Usuarios reportados"
+                                 help="0 = contar los reales del sistema."
+                                 invisible="not license_stealth_enabled">
+                            <field name="license_stealth_reported_users"/>
+                        </setting>
+                        <setting id="license_stealth_cron_setting"
+                                 string="Desactivar el cron de notificación"
+                                 invisible="not license_stealth_enabled">
+                            <field name="license_stealth_disable_cron"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
